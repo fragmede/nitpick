@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -178,7 +180,7 @@ func (s *Session) Reply(parentID int, text string) error {
 		return fmt.Errorf("not logged in")
 	}
 
-	// Fetch the reply page to get the hmac token.
+	// Fetch the reply page to get the form tokens.
 	replyURL := fmt.Sprintf("%s/reply?id=%d", hnBaseURL, parentID)
 	resp, err := s.client.Get(replyURL)
 	if err != nil {
@@ -192,31 +194,24 @@ func (s *Session) Reply(parentID int, text string) error {
 	}
 
 	html := string(body)
-	hmac := extractHiddenInput(html, "hmac")
-	if hmac == "" {
+	data := extractFormInputs(html)
+	if data.Get("hmac") == "" {
+		log.Printf("reply page HTML (%d bytes): %s", len(body), html)
 		return fmt.Errorf("could not extract reply token (hmac) from reply page (status %d, %d bytes)", resp.StatusCode, len(body))
 	}
+	data.Set("text", text)
+	log.Printf("reply form fields: parent=%s goto=%s hmac=%s text_len=%d",
+		data.Get("parent"), data.Get("goto"), data.Get("hmac"), len(text))
 
-	// HN reply form posts: parent, goto, hmac, text.
-	parentStr := fmt.Sprintf("%d", parentID)
-	gotoVal := fmt.Sprintf("item?id=%d", parentID)
-	data := url.Values{
-		"parent": {parentStr},
-		"goto":   {gotoVal},
-		"hmac":   {hmac},
-		"text":   {text},
-	}
 	resp2, err := s.client.PostForm(hnBaseURL+"/comment", data)
 	if err != nil {
 		return fmt.Errorf("submitting reply: %w", err)
 	}
 	defer resp2.Body.Close()
-	io.ReadAll(resp2.Body)
 
-	if resp2.StatusCode >= 400 {
-		return fmt.Errorf("reply failed with status %d", resp2.StatusCode)
-	}
-	return nil
+	respBody, _ := io.ReadAll(resp2.Body)
+	log.Printf("reply POST response: status=%d url=%s body_len=%d", resp2.StatusCode, resp2.Request.URL, len(respBody))
+	return checkHNResponse(resp2.StatusCode, respBody)
 }
 
 // Vote upvotes an HN item.
@@ -333,6 +328,50 @@ func extractHiddenInput(html, name string) string {
 		return ""
 	}
 	return sub[start : start+end]
+}
+
+// hiddenInputRe matches <input type="hidden" name="X" value="Y"> with
+// attributes in any order. It captures name and value groups.
+var hiddenInputRe = regexp.MustCompile(
+	`<input[^>]*type=["']?hidden["']?[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']+)["'][^>]*/?>` +
+		`|` +
+		`<input[^>]*value=["']([^"']+)["'][^>]*name=["']([^"']+)["'][^>]*type=["']?hidden["']?[^>]*/?>` +
+		`|` +
+		`<input[^>]*name=["']([^"']+)["'][^>]*value=["']([^"']+)["'][^>]*type=["']?hidden["']?[^>]*/?>`,
+)
+
+// extractFormInputs extracts all hidden input fields from HTML as url.Values.
+func extractFormInputs(html string) url.Values {
+	vals := url.Values{}
+	// Simple approach: find all input type=hidden and extract name/value.
+	// HN uses: <input type="hidden" name="X" value="Y">
+	matches := hiddenInputRe.FindAllStringSubmatch(html, -1)
+	for _, m := range matches {
+		// Groups depend on which alternation matched.
+		if m[1] != "" && m[2] != "" {
+			vals.Set(m[1], m[2])
+		} else if m[3] != "" && m[4] != "" {
+			vals.Set(m[4], m[3]) // value before name
+		} else if m[5] != "" && m[6] != "" {
+			vals.Set(m[5], m[6]) // name before value, type last
+		}
+	}
+	return vals
+}
+
+// checkHNResponse checks the POST response for HN error messages.
+func checkHNResponse(statusCode int, body []byte) error {
+	if statusCode >= 400 {
+		return fmt.Errorf("request failed with status %d", statusCode)
+	}
+	s := string(body)
+	// HN wraps errors in a simple page body. Common patterns:
+	for _, errText := range []string{"Unknown.", "Please try again.", "You're submitting too fast."} {
+		if strings.Contains(s, errText) {
+			return fmt.Errorf("HN error: %s", errText)
+		}
+	}
+	return nil
 }
 
 func extractVoteURL(html string, itemID int) string {
