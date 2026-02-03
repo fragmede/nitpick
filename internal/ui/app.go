@@ -14,6 +14,7 @@ import (
 	"github.com/fragmede/nitpick/internal/config"
 	"github.com/fragmede/nitpick/internal/monitor"
 	"github.com/fragmede/nitpick/internal/ui/commentfeed"
+	"github.com/fragmede/nitpick/internal/ui/edit"
 	"github.com/fragmede/nitpick/internal/ui/login"
 	"github.com/fragmede/nitpick/internal/ui/messages"
 	"github.com/fragmede/nitpick/internal/ui/notifications"
@@ -34,6 +35,7 @@ const (
 	ViewStoryDetail
 	ViewLogin
 	ViewReply
+	ViewEdit
 	ViewSubmit
 	ViewNotifications
 	ViewUserProfile
@@ -51,6 +53,7 @@ type App struct {
 	storyView     storyview.Model
 	loginForm     login.Model
 	replyForm     reply.Model
+	editForm      edit.Model
 	submitForm    submit.Model
 	notifications notifications.Model
 	userProfile   userprofile.Model
@@ -136,6 +139,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.loginForm.SetSize(msg.Width, contentHeight)
 		case ViewReply:
 			a.replyForm.SetSize(msg.Width, contentHeight)
+		case ViewEdit:
+			a.editForm.SetSize(msg.Width, contentHeight)
 		case ViewSubmit:
 			a.submitForm.SetSize(msg.Width, contentHeight)
 		case ViewNotifications:
@@ -147,7 +152,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Global keys (only when not in text input views).
-		if a.activeView != ViewLogin && a.activeView != ViewReply && a.activeView != ViewSubmit {
+		if a.activeView != ViewLogin && a.activeView != ViewReply && a.activeView != ViewEdit && a.activeView != ViewSubmit {
 			switch msg.String() {
 			case "ctrl+c":
 				a.monitor.Stop()
@@ -226,7 +231,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// View transitions.
 	case messages.OpenStoryMsg:
 		a.pushView(ViewStoryDetail)
-		a.storyView = storyview.New(msg.StoryID, a.cfg, a.client, a.cache)
+		a.storyView = storyview.New(msg.StoryID, a.cfg, a.client, a.cache, a.session.Username)
 		a.storyView.SetSize(a.width, a.height-1)
 		cmd := a.storyView.Init(msg.StoryID)
 		return a, cmd
@@ -244,6 +249,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.pushView(ViewReply)
 		a.replyForm = reply.New(msg.ParentID, a.session)
 		a.replyForm.SetSize(a.width, a.height-1)
+		return a, nil
+
+	case messages.OpenEditMsg:
+		if !a.session.LoggedIn {
+			a.pushView(ViewLogin)
+			a.loginForm = login.New(a.session)
+			a.loginForm.SetSize(a.width, a.height-1)
+			return a, nil
+		}
+		a.pushView(ViewEdit)
+		a.editForm = edit.New(msg.ItemID, msg.CurrentText, a.session)
+		a.editForm.SetSize(a.width, a.height-1)
 		return a, nil
 
 	case messages.OpenUserMsg:
@@ -284,6 +301,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.ReplyResultMsg:
 		if msg.Err == nil {
 			// Track the new comment for monitoring.
+			return a, a.goBack()
+		}
+
+	case messages.EditResultMsg:
+		if msg.Err == nil {
 			return a, a.goBack()
 		}
 
@@ -339,6 +361,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ViewReply:
 		a.replyForm, cmd = a.replyForm.Update(msg)
 		cmds = append(cmds, cmd)
+	case ViewEdit:
+		a.editForm, cmd = a.editForm.Update(msg)
+		cmds = append(cmds, cmd)
 	case ViewSubmit:
 		a.submitForm, cmd = a.submitForm.Update(msg)
 		cmds = append(cmds, cmd)
@@ -370,6 +395,8 @@ func (a *App) View() string {
 		content = a.loginForm.View()
 	case ViewReply:
 		content = a.replyForm.View()
+	case ViewEdit:
+		content = a.editForm.View()
 	case ViewSubmit:
 		content = a.submitForm.View()
 	case ViewNotifications:

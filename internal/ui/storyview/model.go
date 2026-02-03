@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,13 +45,14 @@ type Model struct {
 	client      *api.Client
 	cache       *cache.DB
 	cfg         config.Config
+	username    string
 	loading     bool
 	width       int
 	height      int
 }
 
 // New creates a new story view.
-func New(storyID int, cfg config.Config, client *api.Client, db *cache.DB) Model {
+func New(storyID int, cfg config.Config, client *api.Client, db *cache.DB, username string) Model {
 	vp := viewport.New(0, 0)
 	vp.SetContent("Loading...")
 
@@ -60,6 +62,7 @@ func New(storyID int, cfg config.Config, client *api.Client, db *cache.DB) Model
 		client:      client,
 		cache:       db,
 		cfg:         cfg,
+		username:    username,
 		loading:     true,
 		selectedIdx: 0,
 	}
@@ -212,6 +215,30 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		case "e":
+			if m.selectedIdx < 0 || m.selectedIdx >= len(m.comments) {
+				return m, nil
+			}
+			item := m.comments[m.selectedIdx].Item
+			if m.username == "" {
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Login required to edit"}
+				}
+			}
+			if item.By != m.username {
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Can only edit your own comments"}
+				}
+			}
+			elapsed := time.Now().Unix() - item.Time
+			if elapsed >= 7200 {
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Edit window has expired (2 hour limit)"}
+				}
+			}
+			return m, func() tea.Msg {
+				return messages.OpenEditMsg{ItemID: item.ID, CurrentText: item.Text}
+			}
 		}
 	}
 
@@ -378,7 +405,7 @@ func (m Model) renderHeader() string {
 	}
 
 	parts = append(parts, separatorStyle.Render(strings.Repeat("─", m.width)))
-	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  space:collapse  r:reply  u:upvote  P:profile")
+	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  space:collapse  r:reply  e:edit  u:upvote  P:profile")
 	parts = append(parts, hint)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }

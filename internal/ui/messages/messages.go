@@ -9,7 +9,11 @@ type (
 	SwitchTabMsg  struct{ StoryType api.StoryType }
 	OpenLoginMsg  struct{}
 	OpenReplyMsg  struct{ ParentID int }
-	OpenUserMsg   struct{ Username string }
+	OpenEditMsg   struct {
+		ItemID      int
+		CurrentText string
+	}
+	OpenUserMsg struct{ Username string }
 	OpenNotifyMsg struct{}
 	ShowHelpMsg   struct{}
 )
@@ -41,6 +45,11 @@ type (
 	ReplyResultMsg struct {
 		ParentID int
 		Err      error
+	}
+
+	EditResultMsg struct {
+		ItemID int
+		Err    error
 	}
 
 	SubmitResultMsg struct {

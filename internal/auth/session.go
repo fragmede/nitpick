@@ -214,6 +214,46 @@ func (s *Session) Reply(parentID int, text string) error {
 	return checkHNResponse(resp2.StatusCode, respBody)
 }
 
+// Edit updates the text of an existing HN comment within the edit window.
+func (s *Session) Edit(itemID int, text string) error {
+	if !s.LoggedIn {
+		return fmt.Errorf("not logged in")
+	}
+
+	// Fetch the edit page to get the form tokens.
+	editURL := fmt.Sprintf("%s/edit?id=%d", hnBaseURL, itemID)
+	resp, err := s.client.Get(editURL)
+	if err != nil {
+		return fmt.Errorf("fetching edit page: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	html := string(body)
+	data := extractFormInputs(html)
+	if data.Get("hmac") == "" {
+		log.Printf("edit page HTML (%d bytes): %s", len(body), html)
+		return fmt.Errorf("could not extract edit token (hmac) from edit page (status %d, %d bytes)", resp.StatusCode, len(body))
+	}
+	data.Set("text", text)
+	log.Printf("edit form fields: id=%s hmac=%s text_len=%d",
+		data.Get("id"), data.Get("hmac"), len(text))
+
+	resp2, err := s.client.PostForm(hnBaseURL+"/xedit", data)
+	if err != nil {
+		return fmt.Errorf("submitting edit: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	respBody, _ := io.ReadAll(resp2.Body)
+	log.Printf("edit POST response: status=%d url=%s body_len=%d", resp2.StatusCode, resp2.Request.URL, len(respBody))
+	return checkHNResponse(resp2.StatusCode, respBody)
+}
+
 // Vote upvotes an HN item.
 func (s *Session) Vote(itemID int) error {
 	if !s.LoggedIn {

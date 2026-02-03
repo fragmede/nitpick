@@ -30,6 +30,7 @@ type KeyMap struct {
 	Tab6       key.Binding
 	Submit     key.Binding
 	Filter     key.Binding
+	Edit       key.Binding
 	UserDetail key.Binding
 }
 
@@ -61,5 +62,6 @@ var Keys = KeyMap{
 	Tab6:       key.NewBinding(key.WithKeys("6"), key.WithHelp("6", "jobs")),
 	Submit:     key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "submit")),
 	Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+	Edit:       key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 	UserDetail: key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "user profile")),
 }
