@@ -306,6 +306,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.EditResultMsg:
 		if msg.Err == nil {
+			// Bust the cache: update the stored text so the view reflects the edit.
+			if item, _, _ := a.cache.GetItem(msg.ItemID, a.cfg.ItemTTL); item != nil {
+				item.Text = msg.NewText
+				a.cache.PutItem(item)
+			}
 			return a, a.goBack()
 		}
 

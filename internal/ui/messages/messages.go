@@ -48,8 +48,9 @@ type (
 	}
 
 	EditResultMsg struct {
-		ItemID int
-		Err    error
+		ItemID  int
+		NewText string
+		Err     error
 	}
 
 	SubmitResultMsg struct {

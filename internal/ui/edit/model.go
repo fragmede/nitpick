@@ -82,7 +82,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			itemID := m.itemID
 			return m, func() tea.Msg {
 				err := session.Edit(itemID, text)
-				return messages.EditResultMsg{ItemID: itemID, Err: err}
+				return messages.EditResultMsg{ItemID: itemID, NewText: text, Err: err}
 			}
 		}
 
