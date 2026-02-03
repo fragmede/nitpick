@@ -3,6 +3,7 @@ package ui
 import (
 	"os/exec"
 	"runtime"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -62,6 +63,9 @@ type App struct {
 	session     *auth.Session
 	monitor     *monitor.Monitor
 	unreadCount int
+
+	// Status message auto-clear
+	statusSeq int
 
 	// Dimensions
 	width  int
@@ -296,12 +300,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.StatusMsg:
 		a.statusBar.SetStatus(msg.Text)
-		if msg.Text != "" && !msg.IsError {
-			// Try to open URL.
-			if len(msg.Text) > 9 && msg.Text[:9] == "Opening: " {
-				url := msg.Text[9:]
-				go openBrowser(url)
+		if msg.Text != "" {
+			a.statusSeq++
+			seq := a.statusSeq
+			cmds = append(cmds, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+				return clearStatusMsg{seq: seq}
+			}))
+			if !msg.IsError {
+				if len(msg.Text) > 9 && msg.Text[:9] == "Opening: " {
+					url := msg.Text[9:]
+					go openBrowser(url)
+				}
 			}
+		}
+
+	case clearStatusMsg:
+		if msg.seq == a.statusSeq {
+			a.statusBar.SetStatus("")
 		}
 	}
 
@@ -434,6 +449,8 @@ func (a *App) switchTab(st api.StoryType) tea.Cmd {
 	a.storyList = m
 	return cmd
 }
+
+type clearStatusMsg struct{ seq int }
 
 func openBrowser(url string) {
 	var cmd *exec.Cmd
