@@ -7,10 +7,9 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-// HNToText converts HN's limited HTML to plain text with basic formatting.
-// HN uses: <p> (paragraph), <a> (links), <i> (italic), <code> (inline code),
-// <pre><code> (code blocks), and HTML entities.
-func HNToText(raw string, width int) string {
+// HNToPlainText converts HN's limited HTML to plain text without wrapping.
+// Useful for pre-filling edit forms with decoded comment text.
+func HNToPlainText(raw string) string {
 	if raw == "" {
 		return ""
 	}
@@ -27,7 +26,7 @@ func HNToText(raw string, width int) string {
 		tt := tokenizer.Next()
 		switch tt {
 		case xhtml.ErrorToken:
-			return wrapText(strings.TrimSpace(sb.String()), width)
+			return strings.TrimSpace(sb.String())
 
 		case xhtml.StartTagToken:
 			t := tokenizer.Token()
@@ -77,7 +76,7 @@ func HNToText(raw string, width int) string {
 						sb.WriteString("]")
 					}
 				}
-	
+
 				anchorURL = ""
 			}
 
@@ -106,6 +105,13 @@ func HNToText(raw string, width int) string {
 			}
 		}
 	}
+}
+
+// HNToText converts HN's limited HTML to plain text with word wrapping.
+// HN uses: <p> (paragraph), <a> (links), <i> (italic), <code> (inline code),
+// <pre><code> (code blocks), and HTML entities.
+func HNToText(raw string, width int) string {
+	return wrapText(HNToPlainText(raw), width)
 }
 
 // wrapText performs simple word wrapping to the given width.

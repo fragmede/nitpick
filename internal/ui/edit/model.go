@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/fragmede/nitpick/internal/auth"
+	"github.com/fragmede/nitpick/internal/render"
 	"github.com/fragmede/nitpick/internal/ui/messages"
 )
 
@@ -33,7 +34,7 @@ type Model struct {
 func New(itemID int, currentText string, session *auth.Session) Model {
 	ta := textarea.New()
 	ta.Placeholder = "Edit your comment..."
-	ta.SetValue(currentText)
+	ta.SetValue(render.HNToPlainText(currentText))
 	ta.Focus()
 	ta.SetWidth(80)
 	ta.SetHeight(10)
