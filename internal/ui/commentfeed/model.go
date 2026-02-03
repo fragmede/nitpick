@@ -27,16 +27,29 @@ var (
 	errorMsgStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
 )
 
+// feedEntry represents a single item in the threaded comment feed.
+type feedEntry struct {
+	item  *api.Item
+	depth int
+}
+
+// feedLoadedMsg is sent when comment feed data is ready.
+type feedLoadedMsg struct {
+	feedType api.StoryType
+	entries  []feedEntry
+	err      error
+}
+
 type itemOffset struct {
 	startLine int
 	endLine   int
 }
 
-// Model is a viewport-based feed for displaying full comment text.
+// Model is a viewport-based feed for displaying threaded comments.
 // Used for the threads and newcomments tabs.
 type Model struct {
 	viewport viewport.Model
-	items    []*api.Item
+	entries  []feedEntry
 	offsets  []itemOffset
 	cursor   int
 	feedType api.StoryType
@@ -68,7 +81,7 @@ func (m *Model) SetSize(w, h int) {
 	if m.viewport.Height < 1 {
 		m.viewport.Height = 1
 	}
-	if len(m.items) > 0 {
+	if len(m.entries) > 0 {
 		m.rebuildContent()
 	}
 }
@@ -88,7 +101,7 @@ func (m Model) SwitchFeed(st api.StoryType) (Model, tea.Cmd) {
 	m.feedType = st
 	m.loading = true
 	m.cursor = 0
-	m.items = nil
+	m.entries = nil
 	m.offsets = nil
 	m.viewport.SetContent("")
 	m.viewport.SetYOffset(0)
@@ -98,21 +111,16 @@ func (m Model) SwitchFeed(st api.StoryType) (Model, tea.Cmd) {
 // Update handles messages.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case messages.StoriesLoadedMsg:
-		if msg.StoryType != m.feedType {
+	case feedLoadedMsg:
+		if msg.feedType != m.feedType {
 			return m, nil
 		}
-		if msg.Err != nil {
+		if msg.err != nil {
 			m.loading = false
-			m.viewport.SetContent(errorMsgStyle.Render("Error: " + msg.Err.Error()))
+			m.viewport.SetContent(errorMsgStyle.Render("Error: " + msg.err.Error()))
 			return m, nil
 		}
-		m.items = make([]*api.Item, 0, len(msg.Items))
-		for _, item := range msg.Items {
-			if item != nil {
-				m.items = append(m.items, item)
-			}
-		}
+		m.entries = msg.entries
 		m.loading = false
 		m.cursor = 0
 		m.rebuildContent()
@@ -122,7 +130,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "j", "down":
-			if m.cursor < len(m.items)-1 {
+			if m.cursor < len(m.entries)-1 {
 				m.cursor++
 				m.rebuildContent()
 				m.scrollToCursor()
@@ -136,16 +144,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			return m, nil
 		case "enter":
-			if m.cursor < len(m.items) {
-				item := m.items[m.cursor]
+			if m.cursor < len(m.entries) {
+				item := m.entries[m.cursor].item
 				return m, func() tea.Msg {
 					return messages.OpenStoryMsg{StoryID: item.ID}
 				}
 			}
 			return m, nil
 		case "o":
-			if m.cursor < len(m.items) {
-				item := m.items[m.cursor]
+			if m.cursor < len(m.entries) {
+				item := m.entries[m.cursor].item
 				hnURL := fmt.Sprintf("https://news.ycombinator.com/item?id=%d", item.ID)
 				return m, func() tea.Msg {
 					return messages.StatusMsg{Text: "Opening: " + hnURL}
@@ -162,8 +170,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.viewport.GotoTop()
 			return m, nil
 		case "G", "end":
-			if len(m.items) > 0 {
-				m.cursor = len(m.items) - 1
+			if len(m.entries) > 0 {
+				m.cursor = len(m.entries) - 1
 				m.rebuildContent()
 				m.viewport.GotoBottom()
 			}
@@ -187,12 +195,12 @@ func (m Model) View() string {
 }
 
 func (m *Model) rebuildContent() {
-	if len(m.items) == 0 {
+	if len(m.entries) == 0 {
 		return
 	}
 
 	var sb strings.Builder
-	m.offsets = make([]itemOffset, len(m.items))
+	m.offsets = make([]itemOffset, len(m.entries))
 
 	contentWidth := m.width - 4
 	if contentWidth < 20 {
@@ -200,17 +208,31 @@ func (m *Model) rebuildContent() {
 	}
 
 	lineCount := 0
-	for i, item := range m.items {
+	for i, entry := range m.entries {
 		startLine := lineCount
 		selected := i == m.cursor
+		item := entry.item
+
+		indent := entry.depth * 2
+		indentStr := strings.Repeat(" ", indent)
 
 		border := normalBorderStyle.Render("▎")
 		if selected {
 			border = selectedBorderStyle.Render("▎")
 		}
+		prefix := indentStr + border + " "
+
+		// Meta line first (HN layout: author · time · on: Story Title).
+		meta := m.buildMeta(item)
+		sb.WriteString(prefix + meta + "\n")
+		lineCount++
 
 		// Comment text body.
-		text := render.HNToText(item.Text, contentWidth)
+		bodyWidth := contentWidth - indent - 4
+		if bodyWidth < 20 {
+			bodyWidth = 20
+		}
+		text := render.HNToText(item.Text, bodyWidth)
 		lines := strings.Split(text, "\n")
 
 		truncated := false
@@ -220,19 +242,14 @@ func (m *Model) rebuildContent() {
 		}
 
 		for _, line := range lines {
-			sb.WriteString(border + " " + line + "\n")
+			sb.WriteString(prefix + line + "\n")
 			lineCount++
 		}
 
 		if truncated {
-			sb.WriteString(border + " " + metaStyle.Render("[...]") + "\n")
+			sb.WriteString(prefix + metaStyle.Render("[...]") + "\n")
 			lineCount++
 		}
-
-		// Metadata line: author · time · on: Story Title
-		meta := m.buildMeta(item)
-		sb.WriteString(border + " " + meta + "\n")
-		lineCount++
 
 		// Blank separator.
 		sb.WriteString("\n")
@@ -298,15 +315,100 @@ func (m Model) loadFeed() tea.Cmd {
 	case api.StoryTypeThreads:
 		return func() tea.Msg {
 			if username == "" {
-				return messages.StoriesLoadedMsg{StoryType: st, Err: fmt.Errorf("login required for threads")}
+				return feedLoadedMsg{feedType: st, err: fmt.Errorf("login required for threads")}
 			}
-			items, err := client.GetUserThreads(context.Background(), username, cfg.FetchPageSize)
-			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
+			ctx := context.Background()
+
+			// Step 1: Get user's comments from Algolia (has StoryTitle).
+			algoliaItems, err := client.GetUserThreads(ctx, username, cfg.FetchPageSize)
+			if err != nil {
+				return feedLoadedMsg{feedType: st, err: err}
+			}
+
+			// Collect IDs and StoryTitles from Algolia results.
+			ids := make([]int, 0, len(algoliaItems))
+			storyTitles := make(map[int]string)
+			for _, item := range algoliaItems {
+				if item != nil {
+					ids = append(ids, item.ID)
+					if item.StoryTitle != "" {
+						storyTitles[item.ID] = item.StoryTitle
+					}
+				}
+			}
+
+			// Step 2: Re-fetch from Firebase to get kids arrays.
+			fbItems, err := client.BatchGetItems(ctx, ids)
+			if err != nil {
+				// Fall back to Algolia items without threading.
+				entries := make([]feedEntry, 0, len(algoliaItems))
+				for _, item := range algoliaItems {
+					if item != nil {
+						entries = append(entries, feedEntry{item: item, depth: 0})
+					}
+				}
+				return feedLoadedMsg{feedType: st, entries: entries}
+			}
+
+			// Merge StoryTitle from Algolia into Firebase items.
+			for _, item := range fbItems {
+				if item != nil {
+					if title, ok := storyTitles[item.ID]; ok {
+						item.StoryTitle = title
+					}
+				}
+			}
+
+			// Step 3: Collect all kid IDs for direct replies.
+			var allKidIDs []int
+			for _, item := range fbItems {
+				if item != nil {
+					allKidIDs = append(allKidIDs, item.Kids()...)
+				}
+			}
+
+			// Step 4: Batch-fetch replies.
+			replyMap := make(map[int]*api.Item)
+			if len(allKidIDs) > 0 {
+				replies, _ := client.BatchGetItems(ctx, allKidIDs)
+				for _, r := range replies {
+					if r != nil {
+						replyMap[r.ID] = r
+					}
+				}
+			}
+
+			// Step 5: Build threaded entries (user comment + its replies).
+			var entries []feedEntry
+			for _, item := range fbItems {
+				if item == nil {
+					continue
+				}
+				entries = append(entries, feedEntry{item: item, depth: 0})
+				for _, kidID := range item.Kids() {
+					if reply, ok := replyMap[kidID]; ok {
+						entries = append(entries, feedEntry{item: reply, depth: 1})
+					}
+				}
+			}
+
+			return feedLoadedMsg{feedType: st, entries: entries}
 		}
+
 	case api.StoryTypeComments:
 		return func() tea.Msg {
-			items, err := client.GetNewestComments(context.Background(), cfg.FetchPageSize)
-			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
+			ctx := context.Background()
+			items, err := client.GetNewestComments(ctx, cfg.FetchPageSize)
+			if err != nil {
+				return feedLoadedMsg{feedType: st, err: err}
+			}
+			entries := make([]feedEntry, 0, len(items))
+			for _, item := range items {
+				if item != nil {
+					entries = append(entries, feedEntry{item: item, depth: 0})
+				}
+			}
+			return feedLoadedMsg{feedType: st, entries: entries}
 		}
 	}
 	return nil
