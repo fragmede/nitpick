@@ -10,24 +10,35 @@ import (
 )
 
 var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FFFFFF"))
-
-	descStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#828282"))
-
-	selectedTitleStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("#FF6600"))
-
-	selectedDescStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#CCCCCC"))
-
 	indexStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF6600")).
 			Width(4).
 			Align(lipgloss.Right)
+
+	titleNormal = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF"))
+
+	titleSelected = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FF6600"))
+
+	domainStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#828282"))
+
+	metaStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#828282"))
+
+	commentStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF6600"))
+
+	commentSelectedStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FF6600")).
+				Bold(true).
+				Underline(true)
+
+	separatorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#555555"))
 )
 
 type Delegate struct{}
@@ -42,16 +53,45 @@ func (d Delegate) Render(w io.Writer, m list.Model, index int, listItem list.Ite
 		return
 	}
 
+	selected := index == m.Index()
+
+	// Line 1: index. Title (domain)
 	idx := indexStyle.Render(fmt.Sprintf("%d.", item.Index+1))
 
-	var title, desc string
-	if index == m.Index() {
-		title = selectedTitleStyle.Render(item.Title())
-		desc = selectedDescStyle.Render(item.Description())
+	var title string
+	if selected {
+		title = titleSelected.Render(item.Title())
 	} else {
-		title = titleStyle.Render(item.Title())
-		desc = descStyle.Render(item.Description())
+		title = titleNormal.Render(item.Title())
 	}
 
-	fmt.Fprintf(w, "%s %s\n   %s", idx, title, desc)
+	domain := item.Domain()
+	if domain != "" {
+		title += " " + domainStyle.Render("("+domain+")")
+	}
+
+	// Line 2: N points by author | time | N comments
+	var meta string
+	if item.Item.Score > 0 {
+		meta += fmt.Sprintf("%d points ", item.Item.Score)
+	}
+	if item.Item.By != "" {
+		meta += fmt.Sprintf("by %s ", item.Item.By)
+	}
+	meta += item.TimeAgo()
+
+	metaStr := metaStyle.Render(meta)
+
+	// Comment count — styled separately to stand out like on HN.
+	comments := item.CommentStr()
+	if comments != "" {
+		sep := separatorStyle.Render(" | ")
+		if selected {
+			metaStr += sep + commentSelectedStyle.Render(comments)
+		} else {
+			metaStr += sep + commentStyle.Render(comments)
+		}
+	}
+
+	fmt.Fprintf(w, "%s %s\n     %s", idx, title, metaStr)
 }
