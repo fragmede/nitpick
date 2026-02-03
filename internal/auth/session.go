@@ -178,7 +178,7 @@ func (s *Session) Reply(parentID int, text string) error {
 		return fmt.Errorf("not logged in")
 	}
 
-	// First fetch the reply page to get the fnid token.
+	// Fetch the reply page to get the hmac token.
 	replyURL := fmt.Sprintf("%s/reply?id=%d", hnBaseURL, parentID)
 	resp, err := s.client.Get(replyURL)
 	if err != nil {
@@ -191,15 +191,20 @@ func (s *Session) Reply(parentID int, text string) error {
 		return err
 	}
 
-	fnid := extractFnid(string(body))
-	if fnid == "" {
-		return fmt.Errorf("could not extract reply token (fnid) from reply page (status %d, %d bytes)", resp.StatusCode, len(body))
+	html := string(body)
+	hmac := extractHiddenInput(html, "hmac")
+	if hmac == "" {
+		return fmt.Errorf("could not extract reply token (hmac) from reply page (status %d, %d bytes)", resp.StatusCode, len(body))
 	}
 
-	// Submit the reply.
+	// HN reply form posts: parent, goto, hmac, text.
+	parentStr := fmt.Sprintf("%d", parentID)
+	gotoVal := fmt.Sprintf("item?id=%d", parentID)
 	data := url.Values{
-		"fnid": {fnid},
-		"text": {text},
+		"parent": {parentStr},
+		"goto":   {gotoVal},
+		"hmac":   {hmac},
+		"text":   {text},
 	}
 	resp2, err := s.client.PostForm(hnBaseURL+"/comment", data)
 	if err != nil {
@@ -208,7 +213,6 @@ func (s *Session) Reply(parentID int, text string) error {
 	defer resp2.Body.Close()
 	io.ReadAll(resp2.Body)
 
-	// HN redirects on success.
 	if resp2.StatusCode >= 400 {
 		return fmt.Errorf("reply failed with status %d", resp2.StatusCode)
 	}
@@ -268,7 +272,7 @@ func (s *Session) Submit(title, storyURL, text string) error {
 		return err
 	}
 
-	fnid := extractFnid(string(body))
+	fnid := extractHiddenInput(string(body), "fnid")
 	if fnid == "" {
 		return fmt.Errorf("could not extract submit token (fnid) from submit page (status %d, %d bytes)", resp.StatusCode, len(body))
 	}
@@ -298,18 +302,19 @@ func (s *Session) GetClient() *http.Client {
 	return s.client
 }
 
-func extractFnid(html string) string {
-	// Look for: <input type="hidden" name="fnid" value="XXXX">
-	// Attributes may appear in either order.
-	idx := strings.Index(html, `name="fnid"`)
+// extractHiddenInput extracts the value of a hidden input field by name.
+// Handles: <input type="hidden" name="X" value="Y"> with attributes in any order.
+func extractHiddenInput(html, name string) string {
+	needle := fmt.Sprintf(`name="%s"`, name)
+	idx := strings.Index(html, needle)
 	if idx == -1 {
 		return ""
 	}
-	// Search for value= after name="fnid".
+	// Search for value= after name=.
 	sub := html[idx:]
 	valIdx := strings.Index(sub, `value="`)
 	if valIdx == -1 {
-		// Try before name="fnid" (value may precede name).
+		// Try before name= (value may precede name in the same tag).
 		before := html[max(0, idx-200):idx]
 		valIdx = strings.LastIndex(before, `value="`)
 		if valIdx == -1 {

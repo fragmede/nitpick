@@ -32,6 +32,11 @@ func main() {
 	// Prefetch top stories into cache on startup.
 	go prefetch(client, db)
 
+	// Set up file logging (stdout/stderr are captured by bubbletea).
+	if f, err := tea.LogToFile(cfg.LogPath, "nitpick"); err == nil {
+		defer f.Close()
+	}
+
 	app := ui.NewApp(cfg, client, db)
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	app.SetProgram(p)

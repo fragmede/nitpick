@@ -1,6 +1,7 @@
 package reply
 
 import (
+	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -90,6 +91,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.submitting = false
 		if msg.Err != nil {
 			m.err = msg.Err.Error()
+			log.Printf("reply error (parent=%d): %v", m.parentID, msg.Err)
 			return m, nil
 		}
 		return m, nil

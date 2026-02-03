@@ -10,6 +10,7 @@ type Config struct {
 	CacheDir         string
 	DBPath           string
 	SessionPath      string
+	LogPath          string
 	StoryListTTL     time.Duration
 	ItemTTL          time.Duration
 	CommentTTL       time.Duration
@@ -26,6 +27,7 @@ func Default() Config {
 		CacheDir:         cacheDir,
 		DBPath:           filepath.Join(cacheDir, "cache.db"),
 		SessionPath:      filepath.Join(cacheDir, "session.json"),
+		LogPath:          filepath.Join(cacheDir, "debug.log"),
 		StoryListTTL:     60 * time.Second,
 		ItemTTL:          5 * time.Minute,
 		CommentTTL:       10 * time.Minute,
