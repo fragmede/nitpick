@@ -263,7 +263,18 @@ func (m *Model) rebuildComments() {
 		m.comments = nil
 		return
 	}
-	m.comments = FlattenTree(m.story.Kids(), m.story.By, m.cache, m.cfg, m.collapse)
+	if m.story.Type == "comment" {
+		// Include the root comment itself as the first selectable item.
+		childCount := countDescendants(m.story, m.cache, m.cfg)
+		root := FlatComment{
+			Item:       m.story,
+			Depth:      0,
+			ChildCount: childCount,
+		}
+		m.comments = append([]FlatComment{root}, FlattenTree(m.story.Kids(), m.story.By, m.cache, m.cfg, m.collapse)...)
+	} else {
+		m.comments = FlattenTree(m.story.Kids(), m.story.By, m.cache, m.cfg, m.collapse)
+	}
 	if m.selectedIdx >= len(m.comments) {
 		m.selectedIdx = len(m.comments) - 1
 	}
@@ -387,14 +398,8 @@ func (m Model) renderHeader() string {
 			}
 		}
 	} else if m.story.Type == "comment" {
-		// Comment header — show the comment text and author.
-		bodyWidth := m.width - 4
-		if bodyWidth < 20 {
-			bodyWidth = 20
-		}
-		text := render.HNToText(m.story.Text, bodyWidth)
-		parts = append(parts, storyHeaderStyle.Render(text))
-		meta := fmt.Sprintf("by %s | %s", m.story.By, render.TimeAgo(m.story.Time))
+		// Comment root — minimal header since the full text is in the list.
+		meta := fmt.Sprintf("Comment by %s | %s", m.story.By, render.TimeAgo(m.story.Time))
 		kids := m.story.Kids()
 		if len(kids) > 0 {
 			meta += fmt.Sprintf(" | %d replies", len(kids))
