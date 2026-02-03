@@ -93,6 +93,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return messages.OpenStoryMsg{StoryID: item.Item.ID}
 				}
 			}
+		case "o":
+			if item, ok := m.list.SelectedItem().(StoryItem); ok && item.Item.URL != "" {
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Opening: " + item.Item.URL}
+				}
+			}
 		case "r":
 			m.loading = true
 			m.list.Title = storyTypeTitle(m.storyType) + " (refreshing...)"

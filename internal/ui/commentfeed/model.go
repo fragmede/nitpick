@@ -143,6 +143,15 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		case "o":
+			if m.cursor < len(m.items) {
+				item := m.items[m.cursor]
+				hnURL := fmt.Sprintf("https://news.ycombinator.com/item?id=%d", item.ID)
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Opening: " + hnURL}
+				}
+			}
+			return m, nil
 		case "r":
 			m.loading = true
 			m.viewport.SetContent("Refreshing...")
