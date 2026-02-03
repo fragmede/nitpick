@@ -1,10 +1,14 @@
 # Nitpick
 
-A terminal user interface for [Hacker News](https://news.ycombinator.com), built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+Hi!
+
+I totally wanted a retro feel for browsing HN(https://news.ycombinator.com) over SSH, and it's basically all text anyway, so I had AI help me write a little TUI client for HN.
+
+Built with Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 ## Features
 
-- Browse all HN story types: Top, New, Ask, Show, Jobs, and more
+- Browse all HN story types: Top, New, Ask, Show, Jobs.
 - Threaded comment viewing with collapsible trees
 - Login with your HN account (session persists across restarts)
 - Upvote, reply, and submit stories
