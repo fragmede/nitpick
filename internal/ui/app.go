@@ -12,6 +12,7 @@ import (
 	"github.com/fragmede/nitpick/internal/cache"
 	"github.com/fragmede/nitpick/internal/config"
 	"github.com/fragmede/nitpick/internal/monitor"
+	"github.com/fragmede/nitpick/internal/ui/commentfeed"
 	"github.com/fragmede/nitpick/internal/ui/login"
 	"github.com/fragmede/nitpick/internal/ui/messages"
 	"github.com/fragmede/nitpick/internal/ui/notifications"
@@ -28,6 +29,7 @@ type ViewType int
 
 const (
 	ViewStoryList ViewType = iota
+	ViewCommentFeed
 	ViewStoryDetail
 	ViewLogin
 	ViewReply
@@ -44,6 +46,7 @@ type App struct {
 
 	// Child models
 	storyList     storylist.Model
+	commentFeed   commentfeed.Model
 	storyView     storyview.Model
 	loginForm     login.Model
 	replyForm     reply.Model
@@ -76,6 +79,7 @@ func NewApp(cfg config.Config, client *api.Client, db *cache.DB) *App {
 	return &App{
 		activeView:    ViewStoryList,
 		storyList:     storylist.New(cfg, client, db),
+		commentFeed:   commentfeed.New(cfg, client),
 		statusBar:     statusbar.New(),
 		notifications: notifications.New(db),
 		cfg:           cfg,
@@ -116,8 +120,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		contentHeight := msg.Height - 1 // Reserve 1 line for status bar.
-		// Always resize the story list and status bar.
+		// Always resize persistent views.
 		a.storyList.SetSize(msg.Width, contentHeight)
+		a.commentFeed.SetSize(msg.Width, contentHeight)
 		a.statusBar.SetSize(msg.Width)
 		// Only resize lazily-created views if they're currently active.
 		switch a.activeView {
@@ -144,7 +149,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.monitor.Stop()
 				return a, tea.Quit
 			case "q":
-				if a.activeView == ViewStoryList {
+				if a.activeView == ViewStoryList || a.activeView == ViewCommentFeed {
 					a.monitor.Stop()
 					return a, tea.Quit
 				}
@@ -153,7 +158,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(a.previousViews) > 0 {
 					return a, a.goBack()
 				}
-				if a.activeView != ViewStoryList {
+				if a.activeView != ViewStoryList && a.activeView != ViewCommentFeed {
 					a.activeView = ViewStoryList
 					return a, nil
 				}
@@ -246,7 +251,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.SessionRestoredMsg:
 		a.statusBar.SetUser(msg.Username)
-		a.storyList.SetUser(msg.Username)
+		a.commentFeed.SetUser(msg.Username)
 		if a.program != nil {
 			a.monitor.Start(a.program, msg.Username)
 			go a.monitor.SeedComments()
@@ -256,7 +261,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.LoginResultMsg:
 		if msg.Err == nil {
 			a.statusBar.SetUser(msg.Username)
-			a.storyList.SetUser(msg.Username)
+			a.commentFeed.SetUser(msg.Username)
 			a.session.Save(a.cfg.SessionPath)
 			// Start monitoring.
 			if a.program != nil {
@@ -307,6 +312,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.storyList, cmd = a.storyList.Update(msg)
 		cmds = append(cmds, cmd)
 		a.statusBar.SetActiveTab(a.storyList.StoryType())
+	case ViewCommentFeed:
+		a.commentFeed, cmd = a.commentFeed.Update(msg)
+		cmds = append(cmds, cmd)
 	case ViewStoryDetail:
 		a.storyView, cmd = a.storyView.Update(msg)
 		cmds = append(cmds, cmd)
@@ -339,6 +347,8 @@ func (a *App) View() string {
 	switch a.activeView {
 	case ViewStoryList:
 		content = a.storyList.View()
+	case ViewCommentFeed:
+		content = a.commentFeed.View()
 	case ViewStoryDetail:
 		content = a.storyView.View()
 	case ViewLogin:
@@ -375,8 +385,15 @@ var tabOrder = []api.StoryType{
 	api.StoryTypeShow, api.StoryTypeJobs,
 }
 
+func (a *App) currentTab() api.StoryType {
+	if a.activeView == ViewCommentFeed {
+		return a.commentFeed.FeedType()
+	}
+	return a.storyList.StoryType()
+}
+
 func (a *App) nextTab() tea.Cmd {
-	current := a.storyList.StoryType()
+	current := a.currentTab()
 	for i, st := range tabOrder {
 		if st == current {
 			next := tabOrder[(i+1)%len(tabOrder)]
@@ -387,7 +404,7 @@ func (a *App) nextTab() tea.Cmd {
 }
 
 func (a *App) prevTab() tea.Cmd {
-	current := a.storyList.StoryType()
+	current := a.currentTab()
 	for i, st := range tabOrder {
 		if st == current {
 			prev := tabOrder[(i-1+len(tabOrder))%len(tabOrder)]
@@ -397,14 +414,24 @@ func (a *App) prevTab() tea.Cmd {
 	return a.switchTab(tabOrder[0])
 }
 
+func isCommentTab(st api.StoryType) bool {
+	return st == api.StoryTypeThreads || st == api.StoryTypeComments
+}
+
 func (a *App) switchTab(st api.StoryType) tea.Cmd {
-	if a.activeView != ViewStoryList {
-		a.activeView = ViewStoryList
-		a.previousViews = nil
+	a.previousViews = nil
+	a.statusBar.SetActiveTab(st)
+
+	if isCommentTab(st) {
+		a.activeView = ViewCommentFeed
+		m, cmd := a.commentFeed.SwitchFeed(st)
+		a.commentFeed = m
+		return cmd
 	}
+
+	a.activeView = ViewStoryList
 	m, cmd := a.storyList.Update(messages.SwitchTabMsg{StoryType: st})
 	a.storyList = m
-	a.statusBar.SetActiveTab(st)
 	return cmd
 }
 

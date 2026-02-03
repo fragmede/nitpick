@@ -2,7 +2,6 @@ package storylist
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,7 +18,6 @@ type Model struct {
 	client    *api.Client
 	cache     *cache.DB
 	cfg       config.Config
-	username  string // logged-in user, needed for threads
 	loading   bool
 	width     int
 	height    int
@@ -117,36 +115,16 @@ func (m Model) StoryType() api.StoryType {
 	return m.storyType
 }
 
-// SetUser sets the logged-in username (needed for threads tab).
-func (m *Model) SetUser(username string) {
-	m.username = username
-}
-
 func (m Model) loadStories() tea.Cmd {
 	st := m.storyType
 	client := m.client
 	db := m.cache
 	cfg := m.cfg
-	username := m.username
 
-	// Threads, past, comments use different fetch paths.
-	switch st {
-	case api.StoryTypeThreads:
-		return func() tea.Msg {
-			if username == "" {
-				return messages.StoriesLoadedMsg{StoryType: st, Err: fmt.Errorf("login required for threads")}
-			}
-			items, err := client.GetUserThreads(context.Background(), username, cfg.FetchPageSize)
-			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
-		}
-	case api.StoryTypePast:
+	// Past stories use Algolia (returns stories, not comments).
+	if st == api.StoryTypePast {
 		return func() tea.Msg {
 			items, err := client.GetPastStories(context.Background(), cfg.FetchPageSize)
-			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
-		}
-	case api.StoryTypeComments:
-		return func() tea.Msg {
-			items, err := client.GetNewestComments(context.Background(), cfg.FetchPageSize)
 			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
 		}
 	}
@@ -223,12 +201,8 @@ func storyTypeTitle(st api.StoryType) string {
 		return "Show HN"
 	case api.StoryTypeJobs:
 		return "Jobs"
-	case api.StoryTypeThreads:
-		return "My Threads"
 	case api.StoryTypePast:
 		return "Past"
-	case api.StoryTypeComments:
-		return "New Comments"
 	default:
 		return "Hacker News"
 	}

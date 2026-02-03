@@ -55,12 +55,7 @@ func (d Delegate) Render(w io.Writer, m list.Model, index int, listItem list.Ite
 
 	selected := index == m.Index()
 	idx := indexStyle.Render(fmt.Sprintf("%d.", item.Index+1))
-
-	if item.IsComment() {
-		d.renderComment(w, idx, item, selected)
-	} else {
-		d.renderStory(w, idx, item, selected)
-	}
+	d.renderStory(w, idx, item, selected)
 }
 
 func (d Delegate) renderStory(w io.Writer, idx string, item StoryItem, selected bool) {
@@ -103,27 +98,3 @@ func (d Delegate) renderStory(w io.Writer, idx string, item StoryItem, selected 
 	fmt.Fprintf(w, "%s %s\n     %s", idx, title, metaStr)
 }
 
-func (d Delegate) renderComment(w io.Writer, idx string, item StoryItem, selected bool) {
-	// Line 1: index. Comment text preview
-	var title string
-	if selected {
-		title = titleSelected.Render(item.Title())
-	} else {
-		title = titleNormal.Render(item.Title())
-	}
-
-	// Line 2: by author | time | on: Parent Story Title
-	meta := ""
-	if item.Item.By != "" {
-		meta += fmt.Sprintf("by %s ", item.Item.By)
-	}
-	meta += item.TimeAgo()
-	metaStr := metaStyle.Render(meta)
-
-	if item.Item.StoryTitle != "" {
-		sep := separatorStyle.Render(" | ")
-		metaStr += sep + metaStyle.Render("on: ") + commentStyle.Render(item.Item.StoryTitle)
-	}
-
-	fmt.Fprintf(w, "%s %s\n     %s", idx, title, metaStr)
-}

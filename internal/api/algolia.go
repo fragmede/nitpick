@@ -118,6 +118,9 @@ func (c *Client) GetUserThreads(ctx context.Context, username string, limit int)
 	for _, hit := range resp.Hits {
 		item := hit.ToItem()
 		item.StoryTitle = hit.StoryTitle
+		if hit.StoryID != 0 {
+			item.Parent = hit.StoryID
+		}
 		items = append(items, item)
 	}
 	return items, nil

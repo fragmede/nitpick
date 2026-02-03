@@ -14,22 +14,9 @@ type StoryItem struct {
 	Index int
 }
 
-// IsComment returns true if this item is a comment (for the comments tab).
-func (s StoryItem) IsComment() bool {
-	return s.Item.Type == "comment"
-}
-
 func (s StoryItem) Title() string {
 	if s.Item.Title != "" {
 		return s.Item.Title
-	}
-	if s.Item.Type == "comment" && s.Item.Text != "" {
-		// Show truncated comment text as "title".
-		preview := render.HNToText(s.Item.Text, 200)
-		if len(preview) > 80 {
-			preview = preview[:80] + "..."
-		}
-		return preview
 	}
 	return fmt.Sprintf("[%s]", s.Item.Type)
 }
