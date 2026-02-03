@@ -28,9 +28,6 @@ func NewSession() *Session {
 	return &Session{
 		client: &http.Client{
 			Jar: jar,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
 		},
 		jar: jar,
 	}
@@ -196,7 +193,7 @@ func (s *Session) Reply(parentID int, text string) error {
 
 	fnid := extractFnid(string(body))
 	if fnid == "" {
-		return fmt.Errorf("could not extract reply token (fnid)")
+		return fmt.Errorf("could not extract reply token (fnid) from reply page (status %d, %d bytes)", resp.StatusCode, len(body))
 	}
 
 	// Submit the reply.
@@ -273,7 +270,7 @@ func (s *Session) Submit(title, storyURL, text string) error {
 
 	fnid := extractFnid(string(body))
 	if fnid == "" {
-		return fmt.Errorf("could not extract submit token (fnid)")
+		return fmt.Errorf("could not extract submit token (fnid) from submit page (status %d, %d bytes)", resp.StatusCode, len(body))
 	}
 
 	data := url.Values{
@@ -303,15 +300,27 @@ func (s *Session) GetClient() *http.Client {
 
 func extractFnid(html string) string {
 	// Look for: <input type="hidden" name="fnid" value="XXXX">
+	// Attributes may appear in either order.
 	idx := strings.Index(html, `name="fnid"`)
 	if idx == -1 {
 		return ""
 	}
-	// Search for value= near this position.
+	// Search for value= after name="fnid".
 	sub := html[idx:]
 	valIdx := strings.Index(sub, `value="`)
 	if valIdx == -1 {
-		return ""
+		// Try before name="fnid" (value may precede name).
+		before := html[max(0, idx-200):idx]
+		valIdx = strings.LastIndex(before, `value="`)
+		if valIdx == -1 {
+			return ""
+		}
+		start := valIdx + len(`value="`)
+		end := strings.Index(before[start:], `"`)
+		if end == -1 {
+			return ""
+		}
+		return before[start : start+end]
 	}
 	start := valIdx + len(`value="`)
 	end := strings.Index(sub[start:], `"`)
