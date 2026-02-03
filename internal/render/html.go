@@ -97,10 +97,24 @@ func HNToPlainText(raw string) string {
 			} else if inCode {
 				sb.WriteString(text)
 			} else {
-				// Collapse whitespace for normal text.
+				// Collapse internal whitespace, but preserve word boundaries
+				// at token edges (e.g. space before/after inline elements).
 				normalized := strings.Join(strings.Fields(text), " ")
-				if normalized != "" {
+				if normalized == "" {
+					// All-whitespace token (space between tags).
+					if sb.Len() > 0 && len(text) > 0 && !endsWithSpaceOrNewline(&sb) {
+						sb.WriteString(" ")
+					}
+				} else {
+					// Preserve leading space at token boundary.
+					if sb.Len() > 0 && isSpaceByte(text[0]) && !endsWithSpaceOrNewline(&sb) {
+						sb.WriteString(" ")
+					}
 					sb.WriteString(normalized)
+					// Preserve trailing space for boundary with next element.
+					if isSpaceByte(text[len(text)-1]) {
+						sb.WriteString(" ")
+					}
 				}
 			}
 		}
@@ -148,4 +162,17 @@ func wrapText(text string, width int) string {
 		result.WriteString("\n")
 	}
 	return strings.TrimRight(result.String(), "\n")
+}
+
+func isSpaceByte(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
+}
+
+func endsWithSpaceOrNewline(sb *strings.Builder) bool {
+	s := sb.String()
+	if len(s) == 0 {
+		return true // treat empty as "no space needed"
+	}
+	last := s[len(s)-1]
+	return last == ' ' || last == '\n'
 }
