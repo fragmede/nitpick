@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -160,6 +161,29 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		case "e":
+			if m.cursor >= len(m.entries) {
+				return m, nil
+			}
+			item := m.entries[m.cursor].item
+			if m.username == "" {
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Login required to edit"}
+				}
+			}
+			if item.By != m.username {
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Can only edit your own comments"}
+				}
+			}
+			if time.Now().Unix()-item.Time >= 7200 {
+				return m, func() tea.Msg {
+					return messages.StatusMsg{Text: "Edit window has expired (2 hour limit)"}
+				}
+			}
+			return m, func() tea.Msg {
+				return messages.OpenEditMsg{ItemID: item.ID, CurrentText: item.Text}
+			}
 		case "r":
 			m.loading = true
 			m.viewport.SetContent("Refreshing...")
