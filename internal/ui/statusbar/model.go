@@ -55,7 +55,9 @@ type tab struct {
 var tabs = []tab{
 	{"Top", api.StoryTypeTop},
 	{"New", api.StoryTypeNew},
-	{"Best", api.StoryTypeBest},
+	{"Threads", api.StoryTypeThreads},
+	{"Past", api.StoryTypePast},
+	{"Comments", api.StoryTypeComments},
 	{"Ask", api.StoryTypeAsk},
 	{"Show", api.StoryTypeShow},
 	{"Jobs", api.StoryTypeJobs},

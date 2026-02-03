@@ -253,6 +253,49 @@ func (s *Session) Vote(itemID int) error {
 	return nil
 }
 
+// Submit posts a new story to HN.
+func (s *Session) Submit(title, storyURL, text string) error {
+	if !s.LoggedIn {
+		return fmt.Errorf("not logged in")
+	}
+
+	// Fetch the submit page to get the fnid token.
+	resp, err := s.client.Get(hnBaseURL + "/submit")
+	if err != nil {
+		return fmt.Errorf("fetching submit page: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	fnid := extractFnid(string(body))
+	if fnid == "" {
+		return fmt.Errorf("could not extract submit token (fnid)")
+	}
+
+	data := url.Values{
+		"fnid":  {fnid},
+		"fnop":  {"submit-page"},
+		"title": {title},
+		"url":   {storyURL},
+		"text":  {text},
+	}
+	resp2, err := s.client.PostForm(hnBaseURL+"/r", data)
+	if err != nil {
+		return fmt.Errorf("submitting story: %w", err)
+	}
+	defer resp2.Body.Close()
+	io.ReadAll(resp2.Body)
+
+	if resp2.StatusCode >= 400 {
+		return fmt.Errorf("submit failed with status %d", resp2.StatusCode)
+	}
+	return nil
+}
+
 // GetClient returns the underlying HTTP client (with cookies).
 func (s *Session) GetClient() *http.Client {
 	return s.client

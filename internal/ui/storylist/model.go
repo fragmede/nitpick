@@ -2,6 +2,7 @@ package storylist
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +19,7 @@ type Model struct {
 	client    *api.Client
 	cache     *cache.DB
 	cfg       config.Config
+	username  string // logged-in user, needed for threads
 	loading   bool
 	width     int
 	height    int
@@ -115,13 +117,42 @@ func (m Model) StoryType() api.StoryType {
 	return m.storyType
 }
 
+// SetUser sets the logged-in username (needed for threads tab).
+func (m *Model) SetUser(username string) {
+	m.username = username
+}
+
 func (m Model) loadStories() tea.Cmd {
 	st := m.storyType
 	client := m.client
 	db := m.cache
 	cfg := m.cfg
+	username := m.username
+
+	// Threads, past, comments use different fetch paths.
+	switch st {
+	case api.StoryTypeThreads:
+		return func() tea.Msg {
+			if username == "" {
+				return messages.StoriesLoadedMsg{StoryType: st, Err: fmt.Errorf("login required for threads")}
+			}
+			items, err := client.GetUserThreads(context.Background(), username, cfg.FetchPageSize)
+			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
+		}
+	case api.StoryTypePast:
+		return func() tea.Msg {
+			items, err := client.GetPastStories(context.Background(), cfg.FetchPageSize)
+			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
+		}
+	case api.StoryTypeComments:
+		return func() tea.Msg {
+			items, err := client.GetNewestComments(context.Background(), cfg.FetchPageSize)
+			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
+		}
+	}
+
 	return func() tea.Msg {
-		// Try cache first.
+		// Standard Firebase API path: try cache first.
 		ids, fresh, _ := db.GetStoryList(string(st), cfg.StoryListTTL)
 		if fresh && len(ids) > 0 {
 			return loadItemsFromCache(st, ids, db, cfg)
@@ -131,13 +162,8 @@ func (m Model) loadStories() tea.Cmd {
 }
 
 func (m Model) loadStoriesForce() tea.Cmd {
-	st := m.storyType
-	client := m.client
-	db := m.cache
-	cfg := m.cfg
-	return func() tea.Msg {
-		return fetchAndCache(st, client, db, cfg, nil)
-	}
+	// Force reload just calls loadStories (Algolia types don't cache IDs).
+	return m.loadStories()
 }
 
 func loadItemsFromCache(st api.StoryType, ids []int, db *cache.DB, cfg config.Config) messages.StoriesLoadedMsg {
@@ -188,7 +214,7 @@ func storyTypeTitle(st api.StoryType) string {
 	case api.StoryTypeTop:
 		return "Top Stories"
 	case api.StoryTypeNew:
-		return "New Stories"
+		return "New"
 	case api.StoryTypeBest:
 		return "Best Stories"
 	case api.StoryTypeAsk:
@@ -197,6 +223,12 @@ func storyTypeTitle(st api.StoryType) string {
 		return "Show HN"
 	case api.StoryTypeJobs:
 		return "Jobs"
+	case api.StoryTypeThreads:
+		return "My Threads"
+	case api.StoryTypePast:
+		return "Past"
+	case api.StoryTypeComments:
+		return "New Comments"
 	default:
 		return "Hacker News"
 	}

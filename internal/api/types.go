@@ -8,12 +8,15 @@ import (
 type StoryType string
 
 const (
-	StoryTypeTop  StoryType = "top"
-	StoryTypeNew  StoryType = "new"
-	StoryTypeBest StoryType = "best"
-	StoryTypeAsk  StoryType = "ask"
-	StoryTypeShow StoryType = "show"
-	StoryTypeJobs StoryType = "jobs"
+	StoryTypeTop      StoryType = "top"
+	StoryTypeNew      StoryType = "new"
+	StoryTypeBest     StoryType = "best"
+	StoryTypeAsk      StoryType = "ask"
+	StoryTypeShow     StoryType = "show"
+	StoryTypeJobs     StoryType = "jobs"
+	StoryTypeThreads  StoryType = "threads"
+	StoryTypePast     StoryType = "past"
+	StoryTypeComments StoryType = "comments"
 )
 
 // Item represents an HN item (story, comment, job, poll, pollopt).

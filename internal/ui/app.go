@@ -19,6 +19,7 @@ import (
 	"github.com/fragmede/hn-tui/internal/ui/statusbar"
 	"github.com/fragmede/hn-tui/internal/ui/storylist"
 	"github.com/fragmede/hn-tui/internal/ui/storyview"
+	"github.com/fragmede/hn-tui/internal/ui/submit"
 	"github.com/fragmede/hn-tui/internal/ui/userprofile"
 )
 
@@ -30,6 +31,7 @@ const (
 	ViewStoryDetail
 	ViewLogin
 	ViewReply
+	ViewSubmit
 	ViewNotifications
 	ViewUserProfile
 )
@@ -45,6 +47,7 @@ type App struct {
 	storyView     storyview.Model
 	loginForm     login.Model
 	replyForm     reply.Model
+	submitForm    submit.Model
 	notifications notifications.Model
 	userProfile   userprofile.Model
 	statusBar     statusbar.Model
@@ -124,6 +127,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.loginForm.SetSize(msg.Width, contentHeight)
 		case ViewReply:
 			a.replyForm.SetSize(msg.Width, contentHeight)
+		case ViewSubmit:
+			a.submitForm.SetSize(msg.Width, contentHeight)
 		case ViewNotifications:
 			a.notifications.SetSize(msg.Width, contentHeight)
 		case ViewUserProfile:
@@ -133,7 +138,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Global keys (only when not in text input views).
-		if a.activeView != ViewLogin && a.activeView != ViewReply {
+		if a.activeView != ViewLogin && a.activeView != ViewReply && a.activeView != ViewSubmit {
 			switch msg.String() {
 			case "ctrl+c":
 				a.monitor.Stop()
@@ -164,12 +169,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "2":
 				return a, a.switchTab(api.StoryTypeNew)
 			case "3":
-				return a, a.switchTab(api.StoryTypeBest)
+				return a, a.switchTab(api.StoryTypeThreads)
 			case "4":
-				return a, a.switchTab(api.StoryTypeAsk)
+				return a, a.switchTab(api.StoryTypePast)
 			case "5":
-				return a, a.switchTab(api.StoryTypeShow)
+				return a, a.switchTab(api.StoryTypeComments)
 			case "6":
+				return a, a.switchTab(api.StoryTypeAsk)
+			case "7":
+				return a, a.switchTab(api.StoryTypeShow)
+			case "8":
 				return a, a.switchTab(api.StoryTypeJobs)
 			case "L":
 				if !a.session.LoggedIn {
@@ -181,6 +190,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "n":
 				a.pushView(ViewNotifications)
 				a.notifications.Load()
+				return a, nil
+			case "s":
+				if !a.session.LoggedIn {
+					a.pushView(ViewLogin)
+					a.loginForm = login.New(a.session)
+					a.loginForm.SetSize(a.width, a.height-1)
+				} else {
+					a.pushView(ViewSubmit)
+					a.submitForm = submit.New(a.session)
+					a.submitForm.SetSize(a.width, a.height-1)
+				}
 				return a, nil
 			}
 		} else {
@@ -226,6 +246,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.SessionRestoredMsg:
 		a.statusBar.SetUser(msg.Username)
+		a.storyList.SetUser(msg.Username)
 		if a.program != nil {
 			a.monitor.Start(a.program, msg.Username)
 			go a.monitor.SeedComments()
@@ -235,6 +256,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.LoginResultMsg:
 		if msg.Err == nil {
 			a.statusBar.SetUser(msg.Username)
+			a.storyList.SetUser(msg.Username)
 			a.session.Save(a.cfg.SessionPath)
 			// Start monitoring.
 			if a.program != nil {
@@ -244,6 +266,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, a.goBack()
 		}
 		// Let login form handle the error.
+
+	case messages.SubmitResultMsg:
+		if msg.Err == nil {
+			return a, a.goBack()
+		}
 
 	case messages.ReplyResultMsg:
 		if msg.Err == nil {
@@ -289,6 +316,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ViewReply:
 		a.replyForm, cmd = a.replyForm.Update(msg)
 		cmds = append(cmds, cmd)
+	case ViewSubmit:
+		a.submitForm, cmd = a.submitForm.Update(msg)
+		cmds = append(cmds, cmd)
 	case ViewNotifications:
 		a.notifications, cmd = a.notifications.Update(msg)
 		cmds = append(cmds, cmd)
@@ -315,6 +345,8 @@ func (a *App) View() string {
 		content = a.loginForm.View()
 	case ViewReply:
 		content = a.replyForm.View()
+	case ViewSubmit:
+		content = a.submitForm.View()
 	case ViewNotifications:
 		content = a.notifications.View()
 	case ViewUserProfile:
@@ -338,8 +370,9 @@ func (a *App) goBack() tea.Cmd {
 }
 
 var tabOrder = []api.StoryType{
-	api.StoryTypeTop, api.StoryTypeNew, api.StoryTypeBest,
-	api.StoryTypeAsk, api.StoryTypeShow, api.StoryTypeJobs,
+	api.StoryTypeTop, api.StoryTypeNew, api.StoryTypeThreads,
+	api.StoryTypePast, api.StoryTypeComments, api.StoryTypeAsk,
+	api.StoryTypeShow, api.StoryTypeJobs,
 }
 
 func (a *App) nextTab() tea.Cmd {

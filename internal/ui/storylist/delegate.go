@@ -54,10 +54,17 @@ func (d Delegate) Render(w io.Writer, m list.Model, index int, listItem list.Ite
 	}
 
 	selected := index == m.Index()
-
-	// Line 1: index. Title (domain)
 	idx := indexStyle.Render(fmt.Sprintf("%d.", item.Index+1))
 
+	if item.IsComment() {
+		d.renderComment(w, idx, item, selected)
+	} else {
+		d.renderStory(w, idx, item, selected)
+	}
+}
+
+func (d Delegate) renderStory(w io.Writer, idx string, item StoryItem, selected bool) {
+	// Line 1: index. Title (domain)
 	var title string
 	if selected {
 		title = titleSelected.Render(item.Title())
@@ -92,6 +99,26 @@ func (d Delegate) Render(w io.Writer, m list.Model, index int, listItem list.Ite
 			metaStr += sep + commentStyle.Render(comments)
 		}
 	}
+
+	fmt.Fprintf(w, "%s %s\n     %s", idx, title, metaStr)
+}
+
+func (d Delegate) renderComment(w io.Writer, idx string, item StoryItem, selected bool) {
+	// Line 1: index. Comment text preview
+	var title string
+	if selected {
+		title = titleSelected.Render(item.Title())
+	} else {
+		title = titleNormal.Render(item.Title())
+	}
+
+	// Line 2: by author | time | on: Parent Story
+	meta := ""
+	if item.Item.By != "" {
+		meta += fmt.Sprintf("by %s ", item.Item.By)
+	}
+	meta += item.TimeAgo()
+	metaStr := metaStyle.Render(meta)
 
 	fmt.Fprintf(w, "%s %s\n     %s", idx, title, metaStr)
 }

@@ -43,6 +43,12 @@ type (
 		Err      error
 	}
 
+	SubmitResultMsg struct {
+		Err error
+	}
+
+	OpenSubmitMsg struct{}
+
 	VoteResultMsg struct {
 		ItemID int
 		Err    error
