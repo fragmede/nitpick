@@ -99,7 +99,10 @@ func HNToText(raw string, width int) string {
 				sb.WriteString(text)
 			} else {
 				// Collapse whitespace for normal text.
-				sb.WriteString(text)
+				normalized := strings.Join(strings.Fields(text), " ")
+				if normalized != "" {
+					sb.WriteString(normalized)
+				}
 			}
 		}
 	}
