@@ -169,6 +169,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.selectedIdx = idx
 				m.rebuildContent()
 				m.ensureVisible()
+			} else if m.selectedIdx >= 0 && m.selectedIdx < len(m.comments) {
+				// Parent not in current view — navigate to the parent item.
+				parentID := m.comments[m.selectedIdx].Item.Parent
+				if parentID > 0 {
+					return m, func() tea.Msg {
+						return messages.OpenStoryMsg{StoryID: parentID}
+					}
+				}
 			}
 			return m, nil
 		case "]":
