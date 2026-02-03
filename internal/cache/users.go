@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/fragmede/hn-tui/internal/api"
+	"github.com/fragmede/nitpick/internal/api"
 )
 
 // GetUser retrieves a cached user profile.

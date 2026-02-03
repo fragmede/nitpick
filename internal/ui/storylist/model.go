@@ -6,10 +6,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/fragmede/hn-tui/internal/api"
-	"github.com/fragmede/hn-tui/internal/cache"
-	"github.com/fragmede/hn-tui/internal/config"
-	"github.com/fragmede/hn-tui/internal/ui/messages"
+	"github.com/fragmede/nitpick/internal/api"
+	"github.com/fragmede/nitpick/internal/cache"
+	"github.com/fragmede/nitpick/internal/config"
+	"github.com/fragmede/nitpick/internal/ui/messages"
 )
 
 // Model is the story list view.

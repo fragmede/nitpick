@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/fragmede/hn-tui/internal/api"
-	"github.com/fragmede/hn-tui/internal/render"
+	"github.com/fragmede/nitpick/internal/api"
+	"github.com/fragmede/nitpick/internal/render"
 )
 
 // StoryItem wraps an API item for the bubbles list.

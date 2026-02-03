@@ -1,6 +1,6 @@
 package messages
 
-import "github.com/fragmede/hn-tui/internal/api"
+import "github.com/fragmede/nitpick/internal/api"
 
 // View transition messages.
 type (

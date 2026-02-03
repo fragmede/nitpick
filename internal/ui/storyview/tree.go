@@ -1,9 +1,9 @@
 package storyview
 
 import (
-	"github.com/fragmede/hn-tui/internal/api"
-	"github.com/fragmede/hn-tui/internal/cache"
-	"github.com/fragmede/hn-tui/internal/config"
+	"github.com/fragmede/nitpick/internal/api"
+	"github.com/fragmede/nitpick/internal/cache"
+	"github.com/fragmede/nitpick/internal/config"
 )
 
 // CollapseState tracks collapsed comment IDs.

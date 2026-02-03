@@ -38,7 +38,7 @@ func (c *Client) get(ctx context.Context, url string, dst interface{}) error {
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("User-Agent", "hn-tui/1.0")
+	req.Header.Set("User-Agent", "nitpick/1.0")
 
 	resp, err := c.http.Do(req)
 	if err != nil {

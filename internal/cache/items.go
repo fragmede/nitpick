@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/fragmede/hn-tui/internal/api"
+	"github.com/fragmede/nitpick/internal/api"
 )
 
 // GetItem retrieves a cached item. Returns (item, isFresh, error).

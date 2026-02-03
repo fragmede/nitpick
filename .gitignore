@@ -1,4 +1,4 @@
-hn-tui
+nitpick
 *.db
 *.db-journal
 *.db-wal

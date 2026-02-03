@@ -7,8 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/fragmede/hn-tui/internal/auth"
-	"github.com/fragmede/hn-tui/internal/ui/messages"
+	"github.com/fragmede/nitpick/internal/auth"
+	"github.com/fragmede/nitpick/internal/ui/messages"
 )
 
 var (

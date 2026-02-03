@@ -1,4 +1,4 @@
-module github.com/fragmede/hn-tui
+module github.com/fragmede/nitpick
 
 go 1.24.2
 

@@ -21,7 +21,7 @@ type Config struct {
 }
 
 func Default() Config {
-	cacheDir := filepath.Join(userConfigDir(), "hn-tui")
+	cacheDir := filepath.Join(userConfigDir(), "nitpick")
 	return Config{
 		CacheDir:         cacheDir,
 		DBPath:           filepath.Join(cacheDir, "cache.db"),
