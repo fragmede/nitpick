@@ -144,6 +144,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "?":
 				// TODO: help overlay
 				return a, nil
+			case "tab":
+				return a, a.nextTab()
+			case "shift+tab":
+				return a, a.prevTab()
 			case "1":
 				return a, a.switchTab(api.StoryTypeTop)
 			case "2":
@@ -311,6 +315,33 @@ func (a *App) goBack() tea.Cmd {
 		a.previousViews = a.previousViews[:len(a.previousViews)-1]
 	}
 	return nil
+}
+
+var tabOrder = []api.StoryType{
+	api.StoryTypeTop, api.StoryTypeNew, api.StoryTypeBest,
+	api.StoryTypeAsk, api.StoryTypeShow, api.StoryTypeJobs,
+}
+
+func (a *App) nextTab() tea.Cmd {
+	current := a.storyList.StoryType()
+	for i, st := range tabOrder {
+		if st == current {
+			next := tabOrder[(i+1)%len(tabOrder)]
+			return a.switchTab(next)
+		}
+	}
+	return a.switchTab(tabOrder[0])
+}
+
+func (a *App) prevTab() tea.Cmd {
+	current := a.storyList.StoryType()
+	for i, st := range tabOrder {
+		if st == current {
+			prev := tabOrder[(i-1+len(tabOrder))%len(tabOrder)]
+			return a.switchTab(prev)
+		}
+	}
+	return a.switchTab(tabOrder[0])
 }
 
 func (a *App) switchTab(st api.StoryType) tea.Cmd {
