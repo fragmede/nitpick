@@ -90,7 +90,18 @@ func (a *App) SetProgram(p *tea.Program) {
 
 // Init starts the application.
 func (a *App) Init() tea.Cmd {
-	return a.storyList.Init()
+	return tea.Batch(a.storyList.Init(), a.tryRestoreSession())
+}
+
+func (a *App) tryRestoreSession() tea.Cmd {
+	session := a.session
+	path := a.cfg.SessionPath
+	return func() tea.Msg {
+		if session.Load(path) {
+			return messages.SessionRestoredMsg{Username: session.Username}
+		}
+		return nil
+	}
 }
 
 // Update handles all messages.
@@ -213,9 +224,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := a.userProfile.Init()
 		return a, cmd
 
+	case messages.SessionRestoredMsg:
+		a.statusBar.SetUser(msg.Username)
+		if a.program != nil {
+			a.monitor.Start(a.program, msg.Username)
+			go a.monitor.SeedComments()
+		}
+		return a, nil
+
 	case messages.LoginResultMsg:
 		if msg.Err == nil {
 			a.statusBar.SetUser(msg.Username)
+			a.session.Save(a.cfg.SessionPath)
 			// Start monitoring.
 			if a.program != nil {
 				a.monitor.Start(a.program, msg.Username)

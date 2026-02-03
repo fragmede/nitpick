@@ -56,4 +56,8 @@ type (
 		Text    string
 		IsError bool
 	}
+
+	SessionRestoredMsg struct {
+		Username string
+	}
 )

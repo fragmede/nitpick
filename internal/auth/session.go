@@ -1,12 +1,15 @@
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"strings"
+	"time"
 )
 
 const hnBaseURL = "https://news.ycombinator.com"
@@ -56,6 +59,102 @@ func (s *Session) Login(username, password string) error {
 	s.Username = username
 	s.LoggedIn = true
 	return nil
+}
+
+// savedSession is the JSON structure written to disk.
+type savedSession struct {
+	Username string         `json:"username"`
+	Cookies  []savedCookie  `json:"cookies"`
+	SavedAt  time.Time      `json:"saved_at"`
+}
+
+type savedCookie struct {
+	Name     string    `json:"name"`
+	Value    string    `json:"value"`
+	Domain   string    `json:"domain"`
+	Path     string    `json:"path"`
+	Expires  time.Time `json:"expires"`
+	Secure   bool      `json:"secure"`
+	HttpOnly bool      `json:"http_only"`
+}
+
+// Save persists the session cookies to a file.
+func (s *Session) Save(path string) error {
+	if !s.LoggedIn {
+		return nil
+	}
+
+	u, _ := url.Parse(hnBaseURL)
+	cookies := s.jar.Cookies(u)
+
+	sc := make([]savedCookie, len(cookies))
+	for i, c := range cookies {
+		sc[i] = savedCookie{
+			Name:     c.Name,
+			Value:    c.Value,
+			Domain:   c.Domain,
+			Path:     c.Path,
+			Expires:  c.Expires,
+			Secure:   c.Secure,
+			HttpOnly: c.HttpOnly,
+		}
+	}
+
+	data, err := json.MarshalIndent(savedSession{
+		Username: s.Username,
+		Cookies:  sc,
+		SavedAt:  time.Now(),
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0o600)
+}
+
+// Load restores a session from a file and validates it's still good.
+// Returns true if the session was restored successfully.
+func (s *Session) Load(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+
+	var saved savedSession
+	if err := json.Unmarshal(data, &saved); err != nil {
+		return false
+	}
+
+	if saved.Username == "" || len(saved.Cookies) == 0 {
+		return false
+	}
+
+	// Restore cookies into the jar.
+	u, _ := url.Parse(hnBaseURL)
+	cookies := make([]*http.Cookie, len(saved.Cookies))
+	for i, sc := range saved.Cookies {
+		cookies[i] = &http.Cookie{
+			Name:     sc.Name,
+			Value:    sc.Value,
+			Domain:   sc.Domain,
+			Path:     sc.Path,
+			Expires:  sc.Expires,
+			Secure:   sc.Secure,
+			HttpOnly: sc.HttpOnly,
+		}
+	}
+	s.jar.SetCookies(u, cookies)
+
+	// Validate the session is still alive.
+	if err := s.validate(); err != nil {
+		// Stale session — clear it.
+		os.Remove(path)
+		return false
+	}
+
+	s.Username = saved.Username
+	s.LoggedIn = true
+	return true
 }
 
 func (s *Session) validate() error {
