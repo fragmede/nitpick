@@ -99,7 +99,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return messages.StatusMsg{Text: "Opening: " + item.Item.URL}
 				}
 			}
-		case "r":
+		case "r", "ctrl+r":
 			m.loading = true
 			m.list.Title = storyTypeTitle(m.storyType) + " (refreshing...)"
 			return m, m.loadStoriesForce()
@@ -146,8 +146,22 @@ func (m Model) loadStories() tea.Cmd {
 }
 
 func (m Model) loadStoriesForce() tea.Cmd {
-	// Force reload just calls loadStories (Algolia types don't cache IDs).
-	return m.loadStories()
+	st := m.storyType
+	client := m.client
+	db := m.cache
+	cfg := m.cfg
+
+	if st == api.StoryTypePast {
+		return func() tea.Msg {
+			items, err := client.GetPastStories(context.Background(), cfg.FetchPageSize)
+			return messages.StoriesLoadedMsg{StoryType: st, Items: items, Err: err}
+		}
+	}
+
+	return func() tea.Msg {
+		db.InvalidateStoryList(string(st))
+		return fetchAndCache(st, client, db, cfg, nil)
+	}
 }
 
 func loadItemsFromCache(st api.StoryType, ids []int, db *cache.DB, cfg config.Config) messages.StoriesLoadedMsg {

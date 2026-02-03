@@ -204,6 +204,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, func() tea.Msg { return messages.OpenReplyMsg{ParentID: parentID} }
 			}
 			return m, nil
+		case "ctrl+r":
+			if m.story != nil {
+				m.loading = true
+				m.cache.InvalidateItem(m.story.ID)
+				m.viewport.SetContent("  Refreshing...")
+				return m, m.Init(m.story.ID)
+			}
+			return m, nil
 		case "o":
 			if m.story != nil && m.story.URL != "" {
 				return m, openURL(m.story.URL)

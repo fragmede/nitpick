@@ -69,6 +69,11 @@ func (d *DB) PutItem(item *api.Item) error {
 	return err
 }
 
+// InvalidateItem removes a single item from the cache.
+func (d *DB) InvalidateItem(id int) {
+	d.db.Exec(`DELETE FROM items WHERE id = ?`, id)
+}
+
 func nullStr(s string) sql.NullString {
 	if s == "" {
 		return sql.NullString{}

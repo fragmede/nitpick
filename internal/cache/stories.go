@@ -30,6 +30,11 @@ func (d *DB) GetStoryList(listType string, ttl time.Duration) ([]int, bool, erro
 	return ids, isFresh, nil
 }
 
+// InvalidateStoryList removes a cached story list so the next load fetches fresh.
+func (d *DB) InvalidateStoryList(listType string) {
+	d.db.Exec(`DELETE FROM story_lists WHERE list_type = ?`, listType)
+}
+
 // PutStoryList stores a story ID list in the cache.
 func (d *DB) PutStoryList(listType string, ids []int) error {
 	idsJSON, err := json.Marshal(ids)

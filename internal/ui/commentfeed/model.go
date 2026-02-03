@@ -184,7 +184,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return messages.OpenEditMsg{ItemID: item.ID, CurrentText: item.Text}
 			}
-		case "r":
+		case "r", "ctrl+r":
 			m.loading = true
 			m.viewport.SetContent("Refreshing...")
 			return m, m.loadFeed()
