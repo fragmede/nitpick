@@ -1,0 +1,4 @@
+hn-tui
+*.db
+*.db-journal
+*.db-wal
