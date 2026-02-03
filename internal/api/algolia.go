@@ -94,10 +94,7 @@ func (c *Client) GetNewestComments(ctx context.Context, limit int) ([]*Item, err
 	items := make([]*Item, 0, len(resp.Hits))
 	for _, hit := range resp.Hits {
 		item := hit.ToItem()
-		// Stash story context so we can display it.
-		if hit.StoryTitle != "" {
-			item.Title = hit.StoryTitle
-		}
+		item.StoryTitle = hit.StoryTitle
 		if hit.StoryID != 0 {
 			item.Parent = hit.StoryID
 		}
@@ -106,68 +103,22 @@ func (c *Client) GetNewestComments(ctx context.Context, limit int) ([]*Item, err
 	return items, nil
 }
 
-// GetUserThreads fetches stories the user has commented on.
-// Fetches user's recent submissions, filters for comments, returns parent stories.
+// GetUserThreads fetches the user's recent comments, matching HN's
+// /threads?id=username page. Each comment includes the parent story title.
 func (c *Client) GetUserThreads(ctx context.Context, username string, limit int) ([]*Item, error) {
-	user, err := c.GetUser(ctx, username)
-	if err != nil {
-		return nil, fmt.Errorf("fetching user: %w", err)
+	url := fmt.Sprintf("%s/search_by_date?tags=comment,author_%s&hitsPerPage=%d",
+		algoliaBaseURL, username, limit)
+
+	var resp AlgoliaResponse
+	if err := c.get(ctx, url, &resp); err != nil {
+		return nil, fmt.Errorf("fetching user threads: %w", err)
 	}
 
-	// Take recent submitted items.
-	submitted := user.Submitted
-	fetchCount := limit * 3 // Fetch more since many will be non-comments.
-	if fetchCount > len(submitted) {
-		fetchCount = len(submitted)
+	items := make([]*Item, 0, len(resp.Hits))
+	for _, hit := range resp.Hits {
+		item := hit.ToItem()
+		item.StoryTitle = hit.StoryTitle
+		items = append(items, item)
 	}
-
-	items, err := c.BatchGetItems(ctx, submitted[:fetchCount])
-	if err != nil {
-		return nil, fmt.Errorf("fetching user items: %w", err)
-	}
-
-	// Collect unique parent story IDs from comments.
-	storyIDs := make(map[int]bool)
-	var orderedStoryIDs []int
-	for _, item := range items {
-		if item == nil || item.Type != "comment" {
-			continue
-		}
-		sid := findRootStoryID(item, c, ctx)
-		if sid != 0 && !storyIDs[sid] {
-			storyIDs[sid] = true
-			orderedStoryIDs = append(orderedStoryIDs, sid)
-		}
-		if len(orderedStoryIDs) >= limit {
-			break
-		}
-	}
-
-	// Fetch the actual stories.
-	stories, err := c.BatchGetItems(ctx, orderedStoryIDs)
-	if err != nil {
-		return nil, fmt.Errorf("fetching thread stories: %w", err)
-	}
-	return stories, nil
-}
-
-// findRootStoryID walks up the parent chain to find the root story.
-func findRootStoryID(item *Item, c *Client, ctx context.Context) int {
-	current := item
-	seen := make(map[int]bool)
-	for current.Parent != 0 {
-		if seen[current.Parent] {
-			return current.Parent
-		}
-		seen[current.Parent] = true
-		parent, err := c.GetItem(ctx, current.Parent)
-		if err != nil || parent == nil {
-			return current.Parent
-		}
-		if parent.Type == "story" {
-			return parent.ID
-		}
-		current = parent
-	}
-	return current.ID
+	return items, nil
 }

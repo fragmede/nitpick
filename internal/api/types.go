@@ -34,6 +34,7 @@ type Item struct {
 	Dead        bool   `json:"dead"`
 	Deleted     bool   `json:"deleted"`
 	Poll        int    `json:"poll"`
+	StoryTitle  string `json:"-"` // Parent story title (Algolia-only, not from Firebase)
 
 	// Kids is stored as a JSON array of ints.
 	// We use json.RawMessage to handle the raw JSON and parse lazily.

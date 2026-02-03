@@ -112,13 +112,18 @@ func (d Delegate) renderComment(w io.Writer, idx string, item StoryItem, selecte
 		title = titleNormal.Render(item.Title())
 	}
 
-	// Line 2: by author | time | on: Parent Story
+	// Line 2: by author | time | on: Parent Story Title
 	meta := ""
 	if item.Item.By != "" {
 		meta += fmt.Sprintf("by %s ", item.Item.By)
 	}
 	meta += item.TimeAgo()
 	metaStr := metaStyle.Render(meta)
+
+	if item.Item.StoryTitle != "" {
+		sep := separatorStyle.Render(" | ")
+		metaStr += sep + metaStyle.Render("on: ") + commentStyle.Render(item.Item.StoryTitle)
+	}
 
 	fmt.Fprintf(w, "%s %s\n     %s", idx, title, metaStr)
 }
