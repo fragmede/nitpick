@@ -51,7 +51,7 @@ var Keys = KeyMap{
 	Home:       key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g", "top")),
 	End:        key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("G", "bottom")),
 	Collapse:   key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "collapse")),
-	Parent:     key.NewBinding(key.WithKeys("["), key.WithHelp("[", "parent")),
+	Parent:     key.NewBinding(key.WithKeys("[", "p"), key.WithHelp("p/[", "parent")),
 	NextSib:    key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next sibling")),
 	Tab1:       key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "top")),
 	Tab2:       key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "new")),
@@ -61,5 +61,5 @@ var Keys = KeyMap{
 	Tab6:       key.NewBinding(key.WithKeys("6"), key.WithHelp("6", "jobs")),
 	Submit:     key.NewBinding(key.WithKeys("ctrl+s"), key.WithHelp("ctrl+s", "submit")),
 	Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
-	UserDetail: key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "user profile")),
+	UserDetail: key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "user profile")),
 }

@@ -56,7 +56,8 @@ go build -o nitpick .
 | Key | Action |
 |---|---|
 | `Space` | Collapse / expand comment tree |
-| `[` / `]` | Jump to parent / next sibling |
+| `p` / `[` | Jump to parent comment |
+| `]` | Jump to next sibling |
 | `u` | Upvote (requires login) |
 | `r` | Reply (requires login) |
 
@@ -67,7 +68,7 @@ go build -o nitpick .
 | `L` | Login |
 | `s` | Submit a story |
 | `n` | View notifications |
-| `p` | View user profile |
+| `P` | View user profile |
 | `o` | Open URL in browser |
 
 ## Configuration

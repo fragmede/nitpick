@@ -111,9 +111,9 @@ func (m Model) Init(storyID int) tea.Cmd {
 func (m *Model) SetSize(w, h int) {
 	m.width = w
 	m.height = h
-	// Reserve space for the story header.
+	// Reserve space for the story header + hint line.
 	m.viewport.Width = w
-	m.viewport.Height = h - 5
+	m.viewport.Height = h - 6
 	if m.viewport.Height < 1 {
 		m.viewport.Height = 1
 	}
@@ -161,7 +161,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.rebuildContent()
 			}
 			return m, nil
-		case "[":
+		case "[", "p":
 			if idx := FindParentIndex(m.comments, m.selectedIdx); idx >= 0 {
 				m.selectedIdx = idx
 				m.rebuildContent()
@@ -204,7 +204,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "ctrl+u", "pgup":
 			m.viewport.HalfViewUp()
 			return m, nil
-		case "p":
+		case "P":
 			if m.selectedIdx >= 0 && m.selectedIdx < len(m.comments) {
 				username := m.comments[m.selectedIdx].Item.By
 				if username != "" {
@@ -378,6 +378,8 @@ func (m Model) renderHeader() string {
 	}
 
 	parts = append(parts, separatorStyle.Render(strings.Repeat("─", m.width)))
+	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  space:collapse  r:reply  u:upvote  P:profile")
+	parts = append(parts, hint)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
