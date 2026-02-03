@@ -345,25 +345,39 @@ func (m Model) renderHeader() string {
 		return storyHeaderStyle.Render("Loading...")
 	}
 
-	title := storyHeaderStyle.Render(m.story.Title)
-	meta := storyMetaStyle.Render(fmt.Sprintf(
-		"%d points | by %s | %s | %d comments",
-		m.story.Score, m.story.By, render.TimeAgo(m.story.Time), m.story.Descendants,
-	))
+	var parts []string
 
-	var urlLine string
-	if m.story.URL != "" {
-		if u, err := url.Parse(m.story.URL); err == nil {
-			urlLine = storyURLStyle.Render(u.Host)
+	if m.story.Title != "" {
+		// Story header.
+		parts = append(parts, storyHeaderStyle.Render(m.story.Title))
+		parts = append(parts, storyMetaStyle.Render(fmt.Sprintf(
+			"%d points | by %s | %s | %d comments",
+			m.story.Score, m.story.By, render.TimeAgo(m.story.Time), m.story.Descendants,
+		)))
+		if m.story.URL != "" {
+			if u, err := url.Parse(m.story.URL); err == nil {
+				parts = append(parts, storyURLStyle.Render(u.Host))
+			}
 		}
+	} else if m.story.Type == "comment" {
+		// Comment header — show the comment text and author.
+		bodyWidth := m.width - 4
+		if bodyWidth < 20 {
+			bodyWidth = 20
+		}
+		text := render.HNToText(m.story.Text, bodyWidth)
+		parts = append(parts, storyHeaderStyle.Render(text))
+		meta := fmt.Sprintf("by %s | %s", m.story.By, render.TimeAgo(m.story.Time))
+		kids := m.story.Kids()
+		if len(kids) > 0 {
+			meta += fmt.Sprintf(" | %d replies", len(kids))
+		}
+		parts = append(parts, storyMetaStyle.Render(meta))
+	} else {
+		parts = append(parts, storyHeaderStyle.Render(fmt.Sprintf("[%s #%d]", m.story.Type, m.story.ID)))
 	}
 
-	sep := separatorStyle.Render(strings.Repeat("─", m.width))
-	parts := []string{title, meta}
-	if urlLine != "" {
-		parts = append(parts, urlLine)
-	}
-	parts = append(parts, sep)
+	parts = append(parts, separatorStyle.Render(strings.Repeat("─", m.width)))
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 

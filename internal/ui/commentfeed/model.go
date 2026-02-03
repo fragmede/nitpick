@@ -138,12 +138,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "enter":
 			if m.cursor < len(m.items) {
 				item := m.items[m.cursor]
-				storyID := item.Parent
-				if storyID == 0 {
-					storyID = item.ID
-				}
 				return m, func() tea.Msg {
-					return messages.OpenStoryMsg{StoryID: storyID}
+					return messages.OpenStoryMsg{StoryID: item.ID}
 				}
 			}
 			return m, nil
