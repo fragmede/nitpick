@@ -343,86 +343,22 @@ func (m Model) loadFeed() tea.Cmd {
 			}
 			ctx := context.Background()
 
-			// Step 1: Get user's comments from Algolia (has StoryTitle).
-			algoliaItems, err := client.GetUserThreads(ctx, username, cfg.FetchPageSize)
+			// Scrape the actual HN threads page for proper nesting.
+			comments, err := client.GetThreadsPage(ctx, username)
 			if err != nil {
 				return feedLoadedMsg{feedType: st, err: err}
 			}
 
-			// Collect IDs and StoryTitles from Algolia results.
-			ids := make([]int, 0, len(algoliaItems))
-			storyTitles := make(map[int]string)
-			for _, item := range algoliaItems {
-				if item != nil {
-					ids = append(ids, item.ID)
-					if item.StoryTitle != "" {
-						storyTitles[item.ID] = item.StoryTitle
-					}
+			entries := make([]feedEntry, 0, len(comments))
+			for _, tc := range comments {
+				item := &api.Item{
+					ID:         tc.ID,
+					By:         tc.Author,
+					Time:       tc.Time,
+					Text:       tc.Text,
+					StoryTitle: tc.StoryTitle,
 				}
-			}
-
-			// Step 2: Re-fetch from Firebase to get kids arrays + parent IDs.
-			fbItems, err := client.BatchGetItems(ctx, ids)
-			if err != nil {
-				// Fall back to Algolia items without threading.
-				entries := make([]feedEntry, 0, len(algoliaItems))
-				for _, item := range algoliaItems {
-					if item != nil {
-						entries = append(entries, feedEntry{item: item, depth: 0})
-					}
-				}
-				return feedLoadedMsg{feedType: st, entries: entries}
-			}
-
-			// Build user comment map and merge StoryTitle from Algolia.
-			userComments := make(map[int]*api.Item)
-			for _, item := range fbItems {
-				if item != nil {
-					if title, ok := storyTitles[item.ID]; ok {
-						item.StoryTitle = title
-					}
-					userComments[item.ID] = item
-				}
-			}
-
-			// Identify roots: user comments whose parent is NOT another user comment.
-			var roots []*api.Item
-			for _, item := range fbItems {
-				if item == nil {
-					continue
-				}
-				if _, parentIsUser := userComments[item.Parent]; !parentIsUser {
-					roots = append(roots, item)
-				}
-			}
-
-			// Step 3: Collect kid IDs from all user comments (skip IDs we already have).
-			var allKidIDs []int
-			for _, item := range fbItems {
-				if item != nil {
-					for _, kidID := range item.Kids() {
-						if _, isUser := userComments[kidID]; !isUser {
-							allKidIDs = append(allKidIDs, kidID)
-						}
-					}
-				}
-			}
-
-			// Step 4: Batch-fetch non-user replies.
-			replyMap := make(map[int]*api.Item)
-			if len(allKidIDs) > 0 {
-				replies, _ := client.BatchGetItems(ctx, allKidIDs)
-				for _, r := range replies {
-					if r != nil {
-						replyMap[r.ID] = r
-					}
-				}
-			}
-
-			// Step 5: Build threaded entries recursively.
-			var entries []feedEntry
-			for _, root := range roots {
-				entries = append(entries, buildThread(root, 0, userComments, replyMap)...)
+				entries = append(entries, feedEntry{item: item, depth: tc.Indent})
 			}
 
 			return feedLoadedMsg{feedType: st, entries: entries}
@@ -445,18 +381,4 @@ func (m Model) loadFeed() tea.Cmd {
 		}
 	}
 	return nil
-}
-
-// buildThread recursively builds threaded entries for a comment and its kids.
-// User comments (in userComments) are recursed into; other replies are leaf entries.
-func buildThread(item *api.Item, depth int, userComments map[int]*api.Item, replyMap map[int]*api.Item) []feedEntry {
-	entries := []feedEntry{{item: item, depth: depth}}
-	for _, kidID := range item.Kids() {
-		if child, ok := userComments[kidID]; ok {
-			entries = append(entries, buildThread(child, depth+1, userComments, replyMap)...)
-		} else if reply, ok := replyMap[kidID]; ok {
-			entries = append(entries, feedEntry{item: reply, depth: depth + 1})
-		}
-	}
-	return entries
 }
