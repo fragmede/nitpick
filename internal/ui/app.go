@@ -102,13 +102,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		contentHeight := msg.Height - 1 // Reserve 1 line for status bar.
+		// Always resize the story list and status bar.
 		a.storyList.SetSize(msg.Width, contentHeight)
-		a.storyView.SetSize(msg.Width, contentHeight)
-		a.loginForm.SetSize(msg.Width, contentHeight)
-		a.replyForm.SetSize(msg.Width, contentHeight)
-		a.notifications.SetSize(msg.Width, contentHeight)
-		a.userProfile.SetSize(msg.Width, contentHeight)
 		a.statusBar.SetSize(msg.Width)
+		// Only resize lazily-created views if they're currently active.
+		switch a.activeView {
+		case ViewStoryDetail:
+			a.storyView.SetSize(msg.Width, contentHeight)
+		case ViewLogin:
+			a.loginForm.SetSize(msg.Width, contentHeight)
+		case ViewReply:
+			a.replyForm.SetSize(msg.Width, contentHeight)
+		case ViewNotifications:
+			a.notifications.SetSize(msg.Width, contentHeight)
+		case ViewUserProfile:
+			a.userProfile.SetSize(msg.Width, contentHeight)
+		}
 		return a, nil
 
 	case tea.KeyMsg:
