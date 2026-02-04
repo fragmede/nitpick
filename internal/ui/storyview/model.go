@@ -214,35 +214,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		case "Z":
 			// Collapse all.
-			for _, fc := range m.comments {
-				if len(fc.Item.Kids()) > 0 {
-					m.collapse[fc.Item.ID] = true
-				}
-			}
+			m.setCollapseAll(true)
 			m.rebuildComments()
 			m.rebuildContent()
 			m.viewport.GotoTop()
 			m.selectedIdx = 0
 			return m, nil
 		case "z":
-			// Toggle collapse all: if any are expanded, collapse all; otherwise expand all.
-			anyExpanded := false
-			for _, fc := range m.comments {
-				if !m.collapse[fc.Item.ID] && len(fc.Item.Kids()) > 0 {
-					anyExpanded = true
-					break
-				}
-			}
-			for _, fc := range m.comments {
-				if len(fc.Item.Kids()) > 0 {
-					m.collapse[fc.Item.ID] = anyExpanded
-				}
-			}
-			m.rebuildComments()
-			m.rebuildContent()
-			if anyExpanded {
+			// Toggle: if any expanded, collapse all; otherwise expand all.
+			if m.hasAnyExpanded() {
+				m.setCollapseAll(true)
+				m.rebuildComments()
+				m.rebuildContent()
 				m.viewport.GotoTop()
 				m.selectedIdx = 0
+			} else {
+				m.collapse = make(CollapseState)
+				m.rebuildComments()
+				m.rebuildContent()
 			}
 			return m, nil
 		case "[", "p", "h":
@@ -392,6 +381,55 @@ func (m Model) View() string {
 // Story returns the current story item.
 func (m Model) Story() *api.Item {
 	return m.story
+}
+
+// setCollapseAll walks the full comment tree via the cache and sets collapse state.
+func (m *Model) setCollapseAll(collapse bool) {
+	if m.story == nil {
+		return
+	}
+	var walk func(ids []int)
+	walk = func(ids []int) {
+		for _, id := range ids {
+			item, _, _ := m.cache.GetItem(id, m.cfg.CommentTTL)
+			if item == nil {
+				continue
+			}
+			kids := item.Kids()
+			if len(kids) > 0 {
+				m.collapse[id] = collapse
+				walk(kids)
+			}
+		}
+	}
+	walk(m.story.Kids())
+}
+
+// hasAnyExpanded checks if any comment with children is currently expanded.
+func (m *Model) hasAnyExpanded() bool {
+	if m.story == nil {
+		return false
+	}
+	var walk func(ids []int) bool
+	walk = func(ids []int) bool {
+		for _, id := range ids {
+			item, _, _ := m.cache.GetItem(id, m.cfg.CommentTTL)
+			if item == nil {
+				continue
+			}
+			kids := item.Kids()
+			if len(kids) > 0 {
+				if !m.collapse[id] {
+					return true
+				}
+				if walk(kids) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(m.story.Kids())
 }
 
 func (m *Model) rebuildComments() {
