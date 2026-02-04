@@ -193,7 +193,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.scrollToCursor()
 			}
 			return m, nil
-		case "enter", " ":
+		case "enter":
+			if m.selectedIdx >= 0 && m.selectedIdx < len(m.comments) {
+				storyID := m.comments[m.selectedIdx].Item.ID
+				return m, func() tea.Msg { return messages.OpenStoryMsg{StoryID: storyID} }
+			}
+			return m, nil
+		case " ":
 			if m.selectedIdx >= 0 && m.selectedIdx < len(m.comments) {
 				id := m.comments[m.selectedIdx].Item.ID
 				m.collapse[id] = !m.collapse[id]
@@ -542,7 +548,7 @@ func (m Model) renderHeader() string {
 	}
 
 	parts = append(parts, separatorStyle.Render(strings.Repeat("─", m.width)))
-	hint := commentMetaStyle.Render("j/k:move  h/l:parent/child  ]:sibling  ^:root  space:collapse  z:fold all  r:reply  e:edit  P:profile")
+	hint := commentMetaStyle.Render("j/k:move  h/l:parent/child  ]:sibling  ^:root  enter:open  space:collapse  z:fold all  r:reply  P:profile")
 	parts = append(parts, hint)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
