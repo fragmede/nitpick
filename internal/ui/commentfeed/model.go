@@ -347,7 +347,7 @@ func (m Model) loadFeed() tea.Cmd {
 			ctx := context.Background()
 
 			// Scrape the actual HN threads page for proper nesting.
-			comments, err := client.GetThreadsPage(ctx, username)
+			comments, _, err := client.GetThreadsPage(ctx, username, "")
 			if err != nil {
 				return feedLoadedMsg{feedType: st, err: err}
 			}

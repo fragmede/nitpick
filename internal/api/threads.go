@@ -35,39 +35,46 @@ var (
 
 // GetThreadsPage scrapes the HN threads page for a user and returns
 // comments with their proper indent levels as shown on the site.
-func (c *Client) GetThreadsPage(ctx context.Context, username string) ([]ThreadComment, error) {
+// Pass next="" for the first page, or the cursor from a previous call for subsequent pages.
+func (c *Client) GetThreadsPage(ctx context.Context, username string, next string) ([]ThreadComment, string, error) {
 	url := fmt.Sprintf("%s/threads?id=%s", hnBaseURL, username)
+	if next != "" {
+		url += "&next=" + next
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	req.Header.Set("User-Agent", "nitpick/1.0")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetching threads page: %w", err)
+		return nil, "", fmt.Errorf("fetching threads page: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("threads page returned HTTP %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("threads page returned HTTP %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading threads page: %w", err)
+		return nil, "", fmt.Errorf("reading threads page: %w", err)
 	}
 
 	return ParseThreadsHTML(string(body))
 }
 
+var moreRe = regexp.MustCompile(`<a href="threads\?id=[^&]*&amp;next=(\d+)"`)
+
 // ParseThreadsHTML extracts comments from the HN threads page HTML.
-func ParseThreadsHTML(body string) ([]ThreadComment, error) {
+// Returns (comments, nextCursor, error). nextCursor is empty if there are no more pages.
+func ParseThreadsHTML(body string) ([]ThreadComment, string, error) {
 	// Split by comment rows. Each comment starts with class="athing comtr".
 	parts := strings.Split(body, `class="athing comtr" `)
 	if len(parts) < 2 {
-		return nil, fmt.Errorf("no comments found on threads page")
+		return nil, "", fmt.Errorf("no comments found on threads page")
 	}
 
 	var comments []ThreadComment
@@ -119,5 +126,11 @@ func ParseThreadsHTML(body string) ([]ThreadComment, error) {
 		comments = append(comments, tc)
 	}
 
-	return comments, nil
+	// Extract "More" link for pagination.
+	var nextCursor string
+	if m := moreRe.FindStringSubmatch(body); len(m) > 1 {
+		nextCursor = m[1]
+	}
+
+	return comments, nextCursor, nil
 }
