@@ -42,11 +42,13 @@ go build -o nitpick .
 |---|---|
 | `j` / `k` | Move down / up |
 | `Enter` | Open story or comment thread |
-| `q` / `Esc` | Go back / quit |
+| `q` | Go back to list / quit |
+| `Esc` | Go back one level |
 | `g` / `G` | Jump to top / bottom |
 | `Ctrl+D` / `Ctrl+U` | Page down / up |
 | `/` | Filter / search |
 | `r` | Refresh |
+| `Ctrl+R` | Hard refresh (bust cache) |
 
 ### Tabs
 
@@ -64,6 +66,7 @@ go build -o nitpick .
 | `]` | Jump to next sibling |
 | `u` | Upvote (requires login) |
 | `r` | Reply (requires login) |
+| `e` | Edit own comment (within 2hr window) |
 
 ### Actions
 
