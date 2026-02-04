@@ -19,7 +19,7 @@ import (
 const maxCommentLines = 20
 
 var (
-	selectedBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600"))
+	selectedBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
 	normalBorderStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
 	authorStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6600")).Bold(true)
 	metaStyle           = lipgloss.NewStyle().Foreground(lipgloss.Color("#828282"))

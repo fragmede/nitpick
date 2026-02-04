@@ -484,7 +484,7 @@ func (m *Model) rebuildContent() {
 		barColor := depthColors[fc.Depth%len(depthColors)]
 		selected := i == m.selectedIdx
 		if selected {
-			barColor = "#FF6600"
+			barColor = "#FFFFFF"
 		}
 		bar := lipgloss.NewStyle().Foreground(barColor).Render("│")
 
