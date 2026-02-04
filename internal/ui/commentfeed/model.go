@@ -293,6 +293,9 @@ func (m *Model) buildMeta(item *api.Item) string {
 		parts = append(parts, authorStyle.Render(item.By))
 	}
 	parts = append(parts, metaStyle.Render(render.TimeAgo(item.Time)))
+	if item.Score > 0 {
+		parts = append(parts, metaStyle.Render(fmt.Sprintf("%d points", item.Score)))
+	}
 
 	if item.StoryTitle != "" {
 		parts = append(parts, metaStyle.Render("on: ")+storyRefStyle.Render(item.StoryTitle))
@@ -355,6 +358,7 @@ func (m Model) loadFeed() tea.Cmd {
 					ID:         tc.ID,
 					By:         tc.Author,
 					Time:       tc.Time,
+					Score:      tc.Score,
 					Text:       tc.Text,
 					StoryTitle: tc.StoryTitle,
 				}

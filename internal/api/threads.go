@@ -18,6 +18,7 @@ type ThreadComment struct {
 	Indent     int
 	Author     string
 	Time       int64
+	Score      int
 	Text       string // raw HN HTML
 	StoryTitle string
 	StoryID    int
@@ -28,6 +29,7 @@ var (
 	hnuserRe   = regexp.MustCompile(`class="hnuser">([^<]+)</a>`)
 	ageRe      = regexp.MustCompile(`class="age" title="[^ ]+ (\d+)"`)
 	onstoryRe  = regexp.MustCompile(`class="onstory">[^<]*on:\s*<a href="item\?id=(\d+)"[^>]*title="([^"]*)"`)
+	scoreRe    = regexp.MustCompile(`class="score"[^>]*>(\d+)\s+point`)
 	commtextRe = regexp.MustCompile(`(?s)class="commtext[^"]*">(.*?)</div>\s*<div class="reply">`)
 )
 
@@ -96,6 +98,11 @@ func ParseThreadsHTML(body string) ([]ThreadComment, error) {
 		// Unix timestamp from age title attribute.
 		if m := ageRe.FindStringSubmatch(part); len(m) > 1 {
 			tc.Time, _ = strconv.ParseInt(m[1], 10, 64)
+		}
+
+		// Score (only shown for the user's own comments).
+		if m := scoreRe.FindStringSubmatch(part); len(m) > 1 {
+			tc.Score, _ = strconv.Atoi(m[1])
 		}
 
 		// Story title and ID (only on user's own comments, not context replies).

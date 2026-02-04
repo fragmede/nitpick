@@ -403,9 +403,12 @@ func (m *Model) rebuildContent() {
 			continue
 		}
 
-		// Header: author + time + collapse indicator.
+		// Header: author + time + score + collapse indicator.
 		header := commentAuthorStyle.Render(fc.Item.By)
 		header += " " + commentMetaStyle.Render(render.TimeAgo(fc.Item.Time))
+		if fc.Item.Score > 0 {
+			header += " " + commentMetaStyle.Render(fmt.Sprintf("%d points", fc.Item.Score))
+		}
 		if fc.IsOP {
 			header += " " + commentOPStyle.Render(" OP ")
 		}
