@@ -222,7 +222,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.selectedIdx = 0
 			}
 			return m, nil
-		case "[", "p":
+		case "[", "p", "h":
 			if idx := FindParentIndex(m.comments, m.selectedIdx); idx >= 0 {
 				m.selectedIdx = idx
 				m.rebuildContent()
@@ -244,6 +244,23 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.scrollToCursor()
 			}
 			return m, nil
+		case "l":
+			if m.selectedIdx >= 0 && m.selectedIdx < len(m.comments) {
+				id := m.comments[m.selectedIdx].Item.ID
+				if m.collapse[id] {
+					m.collapse[id] = false
+					m.rebuildComments()
+					m.rebuildContent()
+				}
+				// First child is the next item at depth+1.
+				depth := m.comments[m.selectedIdx].Depth
+				if m.selectedIdx+1 < len(m.comments) && m.comments[m.selectedIdx+1].Depth == depth+1 {
+					m.selectedIdx++
+					m.rebuildContent()
+					m.scrollToCursor()
+				}
+			}
+			return m, nil
 		case "g", "home":
 			m.selectedIdx = 0
 			m.rebuildContent()
@@ -262,7 +279,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, func() tea.Msg { return messages.OpenReplyMsg{ParentID: parentID} }
 			}
 			return m, nil
-		case "R":
+		case "^":
 			if m.story == nil || m.story.Parent == 0 {
 				return m, nil // already at root
 			}
@@ -525,7 +542,7 @@ func (m Model) renderHeader() string {
 	}
 
 	parts = append(parts, separatorStyle.Render(strings.Repeat("─", m.width)))
-	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  R:root  space:collapse  z:fold all  r:reply  e:edit  P:profile")
+	hint := commentMetaStyle.Render("j/k:move  h/l:parent/child  ]:sibling  ^:root  space:collapse  z:fold all  r:reply  e:edit  P:profile")
 	parts = append(parts, hint)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
