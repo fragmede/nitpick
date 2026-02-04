@@ -59,6 +59,9 @@ type App struct {
 	userProfile   userprofile.Model
 	statusBar     statusbar.Model
 
+	// Storyview cache: preserves collapse/scroll/selection state.
+	storyViewCache map[int]storyview.Model
+
 	// Shared state
 	cfg         config.Config
 	client      *api.Client
@@ -84,16 +87,17 @@ func NewApp(cfg config.Config, client *api.Client, db *cache.DB) *App {
 	mon := monitor.New(cfg, client, db)
 
 	return &App{
-		activeView:    ViewStoryList,
-		storyList:     storylist.New(cfg, client, db),
-		commentFeed:   commentfeed.New(cfg, client),
-		statusBar:     statusbar.New(),
-		notifications: notifications.New(db),
-		cfg:           cfg,
-		client:        client,
-		cache:         db,
-		session:       session,
-		monitor:       mon,
+		activeView:     ViewStoryList,
+		storyList:      storylist.New(cfg, client, db),
+		commentFeed:    commentfeed.New(cfg, client),
+		statusBar:      statusbar.New(),
+		notifications:  notifications.New(db),
+		storyViewCache: make(map[int]storyview.Model),
+		cfg:            cfg,
+		client:         client,
+		cache:          db,
+		session:        session,
+		monitor:        mon,
 	}
 }
 
@@ -231,10 +235,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// View transitions.
 	case messages.OpenStoryMsg:
 		a.pushView(ViewStoryDetail)
+		if cached, ok := a.storyViewCache[msg.StoryID]; ok {
+			a.storyView = cached
+			a.storyView.SetSize(a.width, a.height-1)
+			return a, nil
+		}
 		a.storyView = storyview.New(msg.StoryID, a.cfg, a.client, a.cache, a.session.Username)
 		a.storyView.SetSize(a.width, a.height-1)
-		cmd := a.storyView.Init(msg.StoryID)
-		return a, cmd
+		return a, a.storyView.Init(msg.StoryID)
 
 	case messages.GoBackMsg:
 		return a, a.goBack()
@@ -419,6 +427,7 @@ func (a *App) pushView(v ViewType) {
 }
 
 func (a *App) goBackToRoot() tea.Cmd {
+	a.cacheStoryView()
 	if len(a.previousViews) > 0 {
 		a.activeView = a.previousViews[0]
 		a.previousViews = nil
@@ -427,11 +436,32 @@ func (a *App) goBackToRoot() tea.Cmd {
 }
 
 func (a *App) goBack() tea.Cmd {
+	a.cacheStoryView()
 	if len(a.previousViews) > 0 {
 		a.activeView = a.previousViews[len(a.previousViews)-1]
 		a.previousViews = a.previousViews[:len(a.previousViews)-1]
 	}
 	return nil
+}
+
+const maxStoryViewCache = 20
+
+func (a *App) cacheStoryView() {
+	if a.activeView != ViewStoryDetail {
+		return
+	}
+	story := a.storyView.Story()
+	if story == nil {
+		return
+	}
+	if len(a.storyViewCache) >= maxStoryViewCache {
+		// Evict one arbitrary entry.
+		for k := range a.storyViewCache {
+			delete(a.storyViewCache, k)
+			break
+		}
+	}
+	a.storyViewCache[story.ID] = a.storyView
 }
 
 var tabOrder = []api.StoryType{
