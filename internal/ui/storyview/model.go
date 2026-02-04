@@ -240,6 +240,28 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				return m, func() tea.Msg { return messages.OpenReplyMsg{ParentID: parentID} }
 			}
 			return m, nil
+		case "R":
+			if m.story == nil || m.story.Parent == 0 {
+				return m, nil // already at root
+			}
+			db := m.cache
+			cfg := m.cfg
+			current := m.story
+			for current.Parent != 0 {
+				parent, _, _ := db.GetItem(current.Parent, cfg.ItemTTL)
+				if parent == nil {
+					// Parent not cached; open whatever we know is above us.
+					rootID := current.Parent
+					return m, func() tea.Msg { return messages.OpenStoryMsg{StoryID: rootID} }
+				}
+				if parent.Type == "story" {
+					rootID := parent.ID
+					return m, func() tea.Msg { return messages.OpenStoryMsg{StoryID: rootID} }
+				}
+				current = parent
+			}
+			rootID := current.ID
+			return m, func() tea.Msg { return messages.OpenStoryMsg{StoryID: rootID} }
 		case "ctrl+r":
 			if m.story != nil {
 				m.loading = true
@@ -478,7 +500,7 @@ func (m Model) renderHeader() string {
 	}
 
 	parts = append(parts, separatorStyle.Render(strings.Repeat("─", m.width)))
-	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  space:collapse  r:reply  e:edit  u:upvote  P:profile")
+	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  R:root  space:collapse  r:reply  e:edit  u:upvote  P:profile")
 	parts = append(parts, hint)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
