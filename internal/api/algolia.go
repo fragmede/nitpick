@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 )
 
@@ -66,11 +67,14 @@ func (c *Client) GetPastStories(ctx context.Context, limit int) ([]*Item, error)
 	startOfYesterday := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, yesterday.Location())
 	endOfYesterday := startOfYesterday.AddDate(0, 0, 1)
 
-	url := fmt.Sprintf("%s/search?tags=front_page&numericFilters=created_at_i>%d,created_at_i<%d&hitsPerPage=%d",
-		algoliaBaseURL, startOfYesterday.Unix(), endOfYesterday.Unix(), limit)
+	params := url.Values{}
+	params.Set("tags", "front_page")
+	params.Set("numericFilters", fmt.Sprintf("created_at_i>%d,created_at_i<%d", startOfYesterday.Unix(), endOfYesterday.Unix()))
+	params.Set("hitsPerPage", fmt.Sprintf("%d", limit))
+	reqURL := algoliaBaseURL + "/search?" + params.Encode()
 
 	var resp AlgoliaResponse
-	if err := c.get(ctx, url, &resp); err != nil {
+	if err := c.get(ctx, reqURL, &resp); err != nil {
 		return nil, fmt.Errorf("fetching past stories: %w", err)
 	}
 
