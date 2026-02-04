@@ -35,11 +35,19 @@ var (
 	separatorStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#444444"))
 )
 
+const scrollStep = 3
+
+type commentOffset struct {
+	startLine int
+	endLine   int
+}
+
 // Model is the story detail / comment tree view.
 type Model struct {
 	viewport    viewport.Model
 	story       *api.Item
 	comments    []FlatComment
+	offsets     []commentOffset
 	selectedIdx int
 	collapse    CollapseState
 	client      *api.Client
@@ -150,17 +158,38 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "j", "down":
+			if m.selectedIdx >= 0 && m.selectedIdx < len(m.offsets) {
+				off := m.offsets[m.selectedIdx]
+				viewBottom := m.viewport.YOffset + m.viewport.Height
+				if off.endLine >= viewBottom {
+					// Comment extends below viewport — scroll within it.
+					m.viewport.SetYOffset(m.viewport.YOffset + scrollStep)
+					return m, nil
+				}
+			}
 			if m.selectedIdx < len(m.comments)-1 {
 				m.selectedIdx++
 				m.rebuildContent()
-				m.ensureVisible()
+				m.scrollToCursor()
 			}
 			return m, nil
 		case "k", "up":
+			if m.selectedIdx >= 0 && m.selectedIdx < len(m.offsets) {
+				off := m.offsets[m.selectedIdx]
+				if off.startLine < m.viewport.YOffset {
+					// Comment extends above viewport — scroll within it.
+					newOff := m.viewport.YOffset - scrollStep
+					if newOff < off.startLine {
+						newOff = off.startLine
+					}
+					m.viewport.SetYOffset(newOff)
+					return m, nil
+				}
+			}
 			if m.selectedIdx > 0 {
 				m.selectedIdx--
 				m.rebuildContent()
-				m.ensureVisible()
+				m.scrollToCursor()
 			}
 			return m, nil
 		case "enter", " ":
@@ -175,7 +204,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if idx := FindParentIndex(m.comments, m.selectedIdx); idx >= 0 {
 				m.selectedIdx = idx
 				m.rebuildContent()
-				m.ensureVisible()
+				m.scrollToCursor()
 			} else if m.selectedIdx >= 0 && m.selectedIdx < len(m.comments) {
 				// Parent not in current view — navigate to the parent item.
 				parentID := m.comments[m.selectedIdx].Item.Parent
@@ -190,7 +219,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if idx := FindNextSiblingIndex(m.comments, m.selectedIdx); idx >= 0 {
 				m.selectedIdx = idx
 				m.rebuildContent()
-				m.ensureVisible()
+				m.scrollToCursor()
 			}
 			return m, nil
 		case "g", "home":
@@ -308,6 +337,7 @@ func (m *Model) rebuildComments() {
 
 func (m *Model) rebuildContent() {
 	if len(m.comments) == 0 {
+		m.offsets = nil
 		if m.loading {
 			m.viewport.SetContent("  Loading comments...")
 		} else {
@@ -317,12 +347,15 @@ func (m *Model) rebuildContent() {
 	}
 
 	var sb strings.Builder
+	m.offsets = make([]commentOffset, len(m.comments))
 	availWidth := m.width - 4
 	if availWidth < 20 {
 		availWidth = 20
 	}
 
+	lineCount := 0
 	for i, fc := range m.comments {
+		startLine := lineCount
 		indent := int(math.Min(float64(fc.Depth*2), 30))
 		indentStr := strings.Repeat(" ", indent)
 
@@ -332,11 +365,15 @@ func (m *Model) rebuildContent() {
 		if fc.Item.Deleted {
 			line := indentStr + bar + " " + commentDelStyle.Render("[deleted]")
 			sb.WriteString(line + "\n")
+			lineCount++
+			m.offsets[i] = commentOffset{startLine: startLine, endLine: lineCount - 1}
 			continue
 		}
 		if fc.Item.Dead {
 			line := indentStr + bar + " " + commentDelStyle.Render("[flagged]")
 			sb.WriteString(line + "\n")
+			lineCount++
+			m.offsets[i] = commentOffset{startLine: startLine, endLine: lineCount - 1}
 			continue
 		}
 
@@ -366,6 +403,7 @@ func (m *Model) rebuildContent() {
 			headerLine = commentSelStyle.Render(headerLine)
 		}
 		sb.WriteString(headerLine + "\n")
+		lineCount++
 
 		if !fc.IsCollapsed {
 			for _, line := range strings.Split(body, "\n") {
@@ -374,30 +412,26 @@ func (m *Model) rebuildContent() {
 					bodyLine = commentSelStyle.Render(bodyLine)
 				}
 				sb.WriteString(bodyLine + "\n")
+				lineCount++
 			}
 		}
 		sb.WriteString("\n")
+		lineCount++
+
+		m.offsets[i] = commentOffset{startLine: startLine, endLine: lineCount - 1}
 	}
 
 	m.viewport.SetContent(sb.String())
 }
 
-func (m *Model) ensureVisible() {
-	// Estimate position of selected comment and scroll to it.
-	lineCount := 0
-	for i, fc := range m.comments {
-		if i == m.selectedIdx {
-			break
-		}
-		lineCount += 2 // header + gap
-		if !fc.IsCollapsed && fc.Item.Text != "" {
-			lineCount += strings.Count(fc.Item.Text, "\n") + 2
-		}
+func (m *Model) scrollToCursor() {
+	if m.selectedIdx < 0 || m.selectedIdx >= len(m.offsets) {
+		return
 	}
-	if lineCount < m.viewport.YOffset {
-		m.viewport.SetYOffset(lineCount)
-	} else if lineCount > m.viewport.YOffset+m.viewport.Height-3 {
-		m.viewport.SetYOffset(lineCount - m.viewport.Height/2)
+	off := m.offsets[m.selectedIdx]
+	// Show the start of the selected comment if it's not already visible.
+	if off.startLine < m.viewport.YOffset || off.startLine >= m.viewport.YOffset+m.viewport.Height {
+		m.viewport.SetYOffset(off.startLine)
 	}
 }
 
