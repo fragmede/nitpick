@@ -115,13 +115,18 @@ func (m Model) Init(storyID int) tea.Cmd {
 func (m *Model) SetSize(w, h int) {
 	m.width = w
 	m.height = h
-	// Reserve space for the story header + hint line.
 	m.viewport.Width = w
-	m.viewport.Height = h - 6
+	m.resizeViewport()
+	m.rebuildContent()
+}
+
+func (m *Model) resizeViewport() {
+	header := m.renderHeader()
+	headerLines := strings.Count(header, "\n") + 1
+	m.viewport.Height = m.height - headerLines
 	if m.viewport.Height < 1 {
 		m.viewport.Height = 1
 	}
-	m.rebuildContent()
 }
 
 // Update handles messages.
@@ -137,6 +142,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.story = msg.Items[0]
 		}
 		m.loading = false
+		m.resizeViewport()
 		m.rebuildComments()
 		m.rebuildContent()
 		return m, nil
@@ -413,6 +419,13 @@ func (m Model) renderHeader() string {
 			if u, err := url.Parse(m.story.URL); err == nil {
 				parts = append(parts, storyURLStyle.Render(u.Host))
 			}
+		}
+		if m.story.Text != "" {
+			bodyWidth := m.width - 4
+			if bodyWidth < 20 {
+				bodyWidth = 20
+			}
+			parts = append(parts, storyMetaStyle.Render(render.HNToText(m.story.Text, bodyWidth)))
 		}
 	} else if m.story.Type == "comment" {
 		// Comment root — minimal header since the full text is in the list.
