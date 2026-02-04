@@ -212,6 +212,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.scrollToCursor()
 			}
 			return m, nil
+		case "Z":
+			// Collapse all.
+			for _, fc := range m.comments {
+				if len(fc.Item.Kids()) > 0 {
+					m.collapse[fc.Item.ID] = true
+				}
+			}
+			m.rebuildComments()
+			m.rebuildContent()
+			m.viewport.GotoTop()
+			m.selectedIdx = 0
+			return m, nil
 		case "z":
 			// Toggle collapse all: if any are expanded, collapse all; otherwise expand all.
 			anyExpanded := false
