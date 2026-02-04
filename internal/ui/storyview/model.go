@@ -200,6 +200,27 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.rebuildContent()
 			}
 			return m, nil
+		case "z":
+			// Toggle collapse all: if any are expanded, collapse all; otherwise expand all.
+			anyExpanded := false
+			for _, fc := range m.comments {
+				if !m.collapse[fc.Item.ID] && len(fc.Item.Kids()) > 0 {
+					anyExpanded = true
+					break
+				}
+			}
+			for _, fc := range m.comments {
+				if len(fc.Item.Kids()) > 0 {
+					m.collapse[fc.Item.ID] = anyExpanded
+				}
+			}
+			m.rebuildComments()
+			m.rebuildContent()
+			if anyExpanded {
+				m.viewport.GotoTop()
+				m.selectedIdx = 0
+			}
+			return m, nil
 		case "[", "p":
 			if idx := FindParentIndex(m.comments, m.selectedIdx); idx >= 0 {
 				m.selectedIdx = idx
@@ -503,7 +524,7 @@ func (m Model) renderHeader() string {
 	}
 
 	parts = append(parts, separatorStyle.Render(strings.Repeat("─", m.width)))
-	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  R:root  space:collapse  r:reply  e:edit  u:upvote  P:profile")
+	hint := commentMetaStyle.Render("j/k:move  p:parent  ]:sibling  R:root  space:collapse  z:fold all  r:reply  e:edit  P:profile")
 	parts = append(parts, hint)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
