@@ -162,7 +162,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.monitor.Stop()
 					return a, tea.Quit
 				}
-				return a, a.goBack()
+				return a, a.goBackToRoot()
 			case "esc":
 				if len(a.previousViews) > 0 {
 					return a, a.goBack()
@@ -416,6 +416,14 @@ func (a *App) View() string {
 func (a *App) pushView(v ViewType) {
 	a.previousViews = append(a.previousViews, a.activeView)
 	a.activeView = v
+}
+
+func (a *App) goBackToRoot() tea.Cmd {
+	if len(a.previousViews) > 0 {
+		a.activeView = a.previousViews[0]
+		a.previousViews = nil
+	}
+	return nil
 }
 
 func (a *App) goBack() tea.Cmd {
