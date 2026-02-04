@@ -360,6 +360,10 @@ func (m *Model) rebuildContent() {
 		indentStr := strings.Repeat(" ", indent)
 
 		barColor := depthColors[fc.Depth%len(depthColors)]
+		selected := i == m.selectedIdx
+		if selected {
+			barColor = "#FF6600"
+		}
 		bar := lipgloss.NewStyle().Foreground(barColor).Render("│")
 
 		if fc.Item.Deleted {
@@ -399,7 +403,7 @@ func (m *Model) rebuildContent() {
 
 		// Compose lines.
 		headerLine := indentStr + bar + " " + header
-		if i == m.selectedIdx {
+		if selected {
 			headerLine = commentSelStyle.Render(headerLine)
 		}
 		sb.WriteString(headerLine + "\n")
@@ -408,7 +412,7 @@ func (m *Model) rebuildContent() {
 		if !fc.IsCollapsed {
 			for _, line := range strings.Split(body, "\n") {
 				bodyLine := indentStr + bar + " " + line
-				if i == m.selectedIdx {
+				if selected {
 					bodyLine = commentSelStyle.Render(bodyLine)
 				}
 				sb.WriteString(bodyLine + "\n")
