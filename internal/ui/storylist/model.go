@@ -2,6 +2,7 @@ package storylist
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -94,9 +95,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				}
 			}
 		case "o":
-			if item, ok := m.list.SelectedItem().(StoryItem); ok && item.Item.URL != "" {
+			if item, ok := m.list.SelectedItem().(StoryItem); ok {
+				u := item.Item.URL
+				if u == "" {
+					u = fmt.Sprintf("https://news.ycombinator.com/item?id=%d", item.Item.ID)
+				}
 				return m, func() tea.Msg {
-					return messages.StatusMsg{Text: "Opening: " + item.Item.URL}
+					return messages.StatusMsg{Text: "Opening: " + u}
 				}
 			}
 		case "r", "ctrl+r":

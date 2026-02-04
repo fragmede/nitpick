@@ -322,8 +322,15 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			return m, nil
 		case "o":
-			if m.story != nil && m.story.URL != "" {
-				return m, openURL(m.story.URL)
+			if m.selectedIdx >= 0 && m.selectedIdx < len(m.comments) {
+				id := m.comments[m.selectedIdx].Item.ID
+				return m, openURL(fmt.Sprintf("https://news.ycombinator.com/item?id=%d", id))
+			}
+			if m.story != nil {
+				if m.story.URL != "" {
+					return m, openURL(m.story.URL)
+				}
+				return m, openURL(fmt.Sprintf("https://news.ycombinator.com/item?id=%d", m.story.ID))
 			}
 			return m, nil
 		case "ctrl+d", "pgdown":
