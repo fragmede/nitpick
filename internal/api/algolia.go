@@ -86,9 +86,10 @@ func (c *Client) GetPastStories(ctx context.Context, limit int) ([]*Item, error)
 }
 
 // GetNewestComments fetches the newest comments site-wide via Algolia.
-func (c *Client) GetNewestComments(ctx context.Context, limit int) ([]*Item, error) {
-	url := fmt.Sprintf("%s/search_by_date?tags=comment&hitsPerPage=%d",
-		algoliaBaseURL, limit)
+// page is 0-indexed for Algolia pagination.
+func (c *Client) GetNewestComments(ctx context.Context, limit int, page int) ([]*Item, error) {
+	url := fmt.Sprintf("%s/search_by_date?tags=comment&hitsPerPage=%d&page=%d",
+		algoliaBaseURL, limit, page)
 
 	var resp AlgoliaResponse
 	if err := c.get(ctx, url, &resp); err != nil {

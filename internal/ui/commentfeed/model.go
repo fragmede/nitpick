@@ -36,14 +36,23 @@ type feedEntry struct {
 
 // feedLoadedMsg is sent when comment feed data is ready.
 type feedLoadedMsg struct {
-	feedType api.StoryType
-	entries  []feedEntry
-	err      error
+	feedType   api.StoryType
+	entries    []feedEntry
+	nextCursor string
+	err        error
 }
 
 type itemOffset struct {
 	startLine int
 	endLine   int
+}
+
+// feedMoreLoadedMsg is sent when a subsequent page of data is ready.
+type feedMoreLoadedMsg struct {
+	feedType   api.StoryType
+	entries    []feedEntry
+	nextCursor string
+	err        error
 }
 
 // Model is a viewport-based feed for displaying threaded comments.
@@ -60,6 +69,12 @@ type Model struct {
 	loading  bool
 	width    int
 	height   int
+
+	// Pagination state.
+	nextCursor  string // HN threads "More" cursor
+	algoliaPage int    // Algolia page number (0-indexed)
+	loadingMore bool
+	hasMore     bool
 }
 
 // New creates a new comment feed model.
@@ -104,6 +119,10 @@ func (m Model) SwitchFeed(st api.StoryType) (Model, tea.Cmd) {
 	m.cursor = 0
 	m.entries = nil
 	m.offsets = nil
+	m.nextCursor = ""
+	m.algoliaPage = 0
+	m.loadingMore = false
+	m.hasMore = false
 	m.viewport.SetContent("")
 	m.viewport.SetYOffset(0)
 	return m, m.loadFeed()
@@ -124,8 +143,35 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.entries = msg.entries
 		m.loading = false
 		m.cursor = 0
+		m.nextCursor = msg.nextCursor
+		m.hasMore = msg.nextCursor != "" || (msg.feedType == api.StoryTypeComments && len(msg.entries) > 0)
 		m.rebuildContent()
 		m.viewport.SetYOffset(0)
+		return m, nil
+
+	case feedMoreLoadedMsg:
+		if msg.feedType != m.feedType {
+			return m, nil
+		}
+		m.loadingMore = false
+		if msg.err != nil {
+			return m, func() tea.Msg {
+				return messages.StatusMsg{Text: "Error loading more: " + msg.err.Error(), IsError: true}
+			}
+		}
+		if len(msg.entries) == 0 {
+			m.hasMore = false
+			return m, nil
+		}
+		m.entries = append(m.entries, msg.entries...)
+		m.nextCursor = msg.nextCursor
+		if msg.feedType == api.StoryTypeComments {
+			m.algoliaPage++
+			m.hasMore = len(msg.entries) > 0
+		} else {
+			m.hasMore = msg.nextCursor != ""
+		}
+		m.rebuildContent()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -135,6 +181,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.cursor++
 				m.rebuildContent()
 				m.scrollToCursor()
+			}
+			if cmd := m.maybeLoadMore(); cmd != nil {
+				return m, cmd
 			}
 			return m, nil
 		case "k", "up":
@@ -199,6 +248,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.rebuildContent()
 				m.viewport.GotoBottom()
 			}
+			if cmd := m.maybeLoadMore(); cmd != nil {
+				return m, cmd
+			}
 			return m, nil
 		}
 	}
@@ -213,6 +265,8 @@ func (m Model) View() string {
 	title := m.title()
 	if m.loading {
 		title += " (loading...)"
+	} else if m.loadingMore {
+		title += " (loading more...)"
 	}
 	header := headerStyle.Render(title) + "\n"
 	return header + m.viewport.View()
@@ -347,31 +401,19 @@ func (m Model) loadFeed() tea.Cmd {
 			ctx := context.Background()
 
 			// Scrape the actual HN threads page for proper nesting.
-			comments, _, err := client.GetThreadsPage(ctx, username, "")
+			comments, nextCursor, err := client.GetThreadsPage(ctx, username, "")
 			if err != nil {
 				return feedLoadedMsg{feedType: st, err: err}
 			}
 
-			entries := make([]feedEntry, 0, len(comments))
-			for _, tc := range comments {
-				item := &api.Item{
-					ID:         tc.ID,
-					By:         tc.Author,
-					Time:       tc.Time,
-					Score:      tc.Score,
-					Text:       tc.Text,
-					StoryTitle: tc.StoryTitle,
-				}
-				entries = append(entries, feedEntry{item: item, depth: tc.Indent})
-			}
-
-			return feedLoadedMsg{feedType: st, entries: entries}
+			entries := threadCommentsToEntries(comments)
+			return feedLoadedMsg{feedType: st, entries: entries, nextCursor: nextCursor}
 		}
 
 	case api.StoryTypeComments:
 		return func() tea.Msg {
 			ctx := context.Background()
-			items, err := client.GetNewestComments(ctx, cfg.FetchPageSize)
+			items, err := client.GetNewestComments(ctx, cfg.FetchPageSize, 0)
 			if err != nil {
 				return feedLoadedMsg{feedType: st, err: err}
 			}
@@ -385,4 +427,75 @@ func (m Model) loadFeed() tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// maybeLoadMore triggers pagination if cursor is near the bottom.
+func (m *Model) maybeLoadMore() tea.Cmd {
+	if m.loadingMore || !m.hasMore {
+		return nil
+	}
+	if len(m.entries) == 0 {
+		return nil
+	}
+	// Load more when within 5 items of the end.
+	if m.cursor >= len(m.entries)-5 {
+		m.loadingMore = true
+		return m.loadMore()
+	}
+	return nil
+}
+
+func (m Model) loadMore() tea.Cmd {
+	st := m.feedType
+	client := m.client
+	cfg := m.cfg
+	username := m.username
+	cursor := m.nextCursor
+	page := m.algoliaPage + 1
+
+	switch st {
+	case api.StoryTypeThreads:
+		return func() tea.Msg {
+			ctx := context.Background()
+			comments, nextCursor, err := client.GetThreadsPage(ctx, username, cursor)
+			if err != nil {
+				return feedMoreLoadedMsg{feedType: st, err: err}
+			}
+			entries := threadCommentsToEntries(comments)
+			return feedMoreLoadedMsg{feedType: st, entries: entries, nextCursor: nextCursor}
+		}
+
+	case api.StoryTypeComments:
+		return func() tea.Msg {
+			ctx := context.Background()
+			items, err := client.GetNewestComments(ctx, cfg.FetchPageSize, page)
+			if err != nil {
+				return feedMoreLoadedMsg{feedType: st, err: err}
+			}
+			entries := make([]feedEntry, 0, len(items))
+			for _, item := range items {
+				if item != nil {
+					entries = append(entries, feedEntry{item: item, depth: 0})
+				}
+			}
+			return feedMoreLoadedMsg{feedType: st, entries: entries}
+		}
+	}
+	return nil
+}
+
+func threadCommentsToEntries(comments []api.ThreadComment) []feedEntry {
+	entries := make([]feedEntry, 0, len(comments))
+	for _, tc := range comments {
+		item := &api.Item{
+			ID:         tc.ID,
+			By:         tc.Author,
+			Time:       tc.Time,
+			Score:      tc.Score,
+			Text:       tc.Text,
+			StoryTitle: tc.StoryTitle,
+		}
+		entries = append(entries, feedEntry{item: item, depth: tc.Indent})
+	}
+	return entries
 }
