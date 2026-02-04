@@ -3,6 +3,7 @@ package storyview
 import (
 	"context"
 	"fmt"
+	"html"
 	"math"
 	"net/url"
 	"strings"
@@ -494,7 +495,7 @@ func (m Model) renderHeader() string {
 
 	if m.story.Title != "" {
 		// Story header.
-		parts = append(parts, storyHeaderStyle.Render(m.story.Title))
+		parts = append(parts, storyHeaderStyle.Render(html.UnescapeString(m.story.Title)))
 		parts = append(parts, storyMetaStyle.Render(fmt.Sprintf(
 			"%d points | by %s | %s | %d comments",
 			m.story.Score, m.story.By, render.TimeAgo(m.story.Time), m.story.Descendants,

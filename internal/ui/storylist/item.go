@@ -2,6 +2,7 @@ package storylist
 
 import (
 	"fmt"
+	"html"
 	"net/url"
 
 	"github.com/fragmede/nitpick/internal/api"
@@ -16,7 +17,7 @@ type StoryItem struct {
 
 func (s StoryItem) Title() string {
 	if s.Item.Title != "" {
-		return s.Item.Title
+		return html.UnescapeString(s.Item.Title)
 	}
 	return fmt.Sprintf("[%s]", s.Item.Type)
 }
@@ -27,7 +28,7 @@ func (s StoryItem) Description() string {
 }
 
 func (s StoryItem) FilterValue() string {
-	return s.Item.Title + " " + s.Item.By + " " + s.Domain()
+	return html.UnescapeString(s.Item.Title) + " " + s.Item.By + " " + s.Domain()
 }
 
 // Domain returns the hostname from the story URL.
