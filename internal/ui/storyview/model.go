@@ -204,7 +204,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				id := m.comments[m.selectedIdx].Item.ID
 				m.collapse[id] = !m.collapse[id]
 				m.rebuildComments()
+				// After collapsing, advance to next sibling/comment.
+				if m.collapse[id] && m.selectedIdx+1 < len(m.comments) {
+					m.selectedIdx++
+				}
 				m.rebuildContent()
+				m.scrollToCursor()
 			}
 			return m, nil
 		case "z":
