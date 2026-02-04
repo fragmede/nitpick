@@ -89,18 +89,19 @@ func (m Model) Init(storyID int) tea.Cmd {
 		kids := story.Kids()
 		if len(kids) > 0 {
 			items, _ := client.BatchGetItems(ctx, kids)
+			// Collect all nested kid IDs, then fetch in one batch.
+			var allNestedIDs []int
 			for _, item := range items {
 				if item != nil {
 					db.PutItem(item)
-					// Also pre-fetch one level of nested comments.
-					nestedKids := item.Kids()
-					if len(nestedKids) > 0 {
-						nested, _ := client.BatchGetItems(ctx, nestedKids)
-						for _, n := range nested {
-							if n != nil {
-								db.PutItem(n)
-							}
-						}
+					allNestedIDs = append(allNestedIDs, item.Kids()...)
+				}
+			}
+			if len(allNestedIDs) > 0 {
+				nested, _ := client.BatchGetItems(ctx, allNestedIDs)
+				for _, n := range nested {
+					if n != nil {
+						db.PutItem(n)
 					}
 				}
 			}
@@ -281,13 +282,13 @@ func (m *Model) rebuildComments() {
 	}
 	if m.story.Type == "comment" {
 		// Include the root comment itself as the first selectable item.
-		childCount := countDescendants(m.story, m.cache, m.cfg)
+		kids := FlattenTree(m.story.Kids(), m.story.By, m.cache, m.cfg, m.collapse)
 		root := FlatComment{
 			Item:       m.story,
 			Depth:      0,
-			ChildCount: childCount,
+			ChildCount: len(kids),
 		}
-		m.comments = append([]FlatComment{root}, FlattenTree(m.story.Kids(), m.story.By, m.cache, m.cfg, m.collapse)...)
+		m.comments = append([]FlatComment{root}, kids...)
 	} else {
 		m.comments = FlattenTree(m.story.Kids(), m.story.By, m.cache, m.cfg, m.collapse)
 	}

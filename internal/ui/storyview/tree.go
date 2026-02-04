@@ -1,7 +1,6 @@
 package storyview
 
 import (
-	"github.com/fragmede/nitpick/internal/api"
 	"github.com/fragmede/nitpick/internal/cache"
 	"github.com/fragmede/nitpick/internal/config"
 )
@@ -13,49 +12,41 @@ type CollapseState map[int]bool
 func FlattenTree(rootKids []int, opUser string, db *cache.DB, cfg config.Config, cs CollapseState) []FlatComment {
 	var result []FlatComment
 
-	var walk func(itemID int, depth int)
-	walk = func(itemID int, depth int) {
+	// walk returns the total descendant count for this subtree.
+	var walk func(itemID int, depth int) int
+	walk = func(itemID int, depth int) int {
 		item, _, _ := db.GetItem(itemID, cfg.CommentTTL)
 		if item == nil {
-			return
+			return 0
 		}
 
-		childCount := countDescendants(item, db, cfg)
-
-		fc := FlatComment{
+		idx := len(result)
+		// Append placeholder; we'll fill ChildCount after walking children.
+		result = append(result, FlatComment{
 			Item:        item,
 			Depth:       depth,
 			IsCollapsed: cs[item.ID],
-			ChildCount:  childCount,
 			IsOP:        item.By == opUser && opUser != "",
-		}
-		result = append(result, fc)
+		})
 
-		if cs[item.ID] {
-			return
+		descendants := 0
+		if !cs[item.ID] {
+			for _, kidID := range item.Kids() {
+				descendants += 1 + walk(kidID, depth+1)
+			}
+		} else {
+			// Collapsed: count kids without walking (for the [+N] badge).
+			descendants = len(item.Kids())
 		}
 
-		for _, kidID := range item.Kids() {
-			walk(kidID, depth+1)
-		}
+		result[idx].ChildCount = descendants
+		return descendants
 	}
 
 	for _, kidID := range rootKids {
 		walk(kidID, 0)
 	}
 	return result
-}
-
-func countDescendants(item *api.Item, db *cache.DB, cfg config.Config) int {
-	count := 0
-	for _, kidID := range item.Kids() {
-		count++
-		kid, _, _ := db.GetItem(kidID, cfg.CommentTTL)
-		if kid != nil {
-			count += countDescendants(kid, db, cfg)
-		}
-	}
-	return count
 }
 
 // FindParentIndex returns the index of the parent comment in the flat list.
